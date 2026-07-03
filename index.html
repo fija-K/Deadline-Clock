@@ -164,6 +164,7 @@
         <button data-tab="themes" class="active">Themes</button>
         <button data-tab="timers">Timers</button>
         <button data-tab="custom">Custom Steps</button>
+        <button data-tab="question">Question</button>
         <button data-tab="breaks">Breaks</button>
         <button data-tab="account">Account</button>
         <button data-tab="reset">Reset Defaults</button>
@@ -185,6 +186,15 @@
           <button type="submit" class="wide-primary">Add Step</button>
         </form>
         <div class="settings-list" id="customList"></div>
+      </section>
+
+      <section class="drawer-panel" data-panel="question">
+        <form class="custom-form" id="questionEditForm">
+          <label>Question no. optional<input id="questionEditNumber" type="text" maxlength="12" placeholder="42"></label>
+          <label>Question name<input id="questionEditTitle" type="text" maxlength="80" placeholder="Two Sum"></label>
+          <label>Description<textarea id="questionEditDescription" maxlength="160" placeholder="What you tried, source, notes..."></textarea></label>
+          <button type="submit" class="wide-primary">Save Question</button>
+        </form>
       </section>
 
       <section class="drawer-panel" data-panel="breaks">
@@ -273,7 +283,8 @@
         </div>
         <form class="history-form" id="historyForm">
           <label>Question no. optional<input id="questionNumber" type="text" maxlength="12" placeholder="42"></label>
-          <label>Question name / description<textarea id="questionTitle" maxlength="120" placeholder="Two Sum, graph BFS, DP notes..."></textarea></label>
+          <label>Question name<input id="questionTitle" type="text" maxlength="80" placeholder="Two Sum"></label>
+          <label>Description<textarea id="questionDescription" maxlength="160" placeholder="What you tried, source, notes..."></textarea></label>
           <button type="submit" class="wide-primary">Start Question</button>
         </form>
       </div>

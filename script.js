@@ -173,6 +173,11 @@
     closeQuestionSetup: $("#closeQuestionSetup"),
     questionNumber: $("#questionNumber"),
     questionTitle: $("#questionTitle"),
+    questionDescription: $("#questionDescription"),
+    questionEditForm: $("#questionEditForm"),
+    questionEditNumber: $("#questionEditNumber"),
+    questionEditTitle: $("#questionEditTitle"),
+    questionEditDescription: $("#questionEditDescription"),
     historyList: $("#historyList")
   };
 
@@ -284,7 +289,7 @@
 
   function getWorkflow(source = state) {
     if (source.difficulty === "custom") {
-      return source.customFlow
+      return getCustomFlow(source)
         .slice()
         .sort((a, b) => a.order - b.order)
         .map((item) => ({
@@ -316,6 +321,24 @@
         });
       });
     return filtered;
+  }
+
+  function getCustomFlow(source = state) {
+    if (source.customFlow?.length) return source.customFlow;
+    return (source.customSteps || []).map((item, index) => ({
+      id: item.id,
+      name: item.name,
+      minutes: item.minutes,
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : index
+    })).filter((item) => item.name);
+  }
+
+  function ensureCustomFlow() {
+    if (state.customFlow.length || !state.customSteps.length) return;
+    state.customFlow = getCustomFlow()
+      .slice()
+      .sort((a, b) => a.order - b.order)
+      .map((item, order) => ({ ...item, order }));
   }
 
   function timerKey(stepId, source = state) {
@@ -489,7 +512,7 @@
       : `<p class="drawer-copy">No custom steps yet.</p>`;
 
     if (state.difficulty === "custom") {
-      const customFlow = state.customFlow.slice().sort((a, b) => a.order - b.order);
+      const customFlow = getCustomFlow().slice().sort((a, b) => a.order - b.order);
       els.customPosition.innerHTML = [
         `<option value="__end__">At end</option>`,
         ...customFlow.map((item) => `<option value="${item.id}">After ${escapeHtml(item.name)}</option>`)
@@ -512,6 +535,7 @@
     if (document.activeElement !== els.breakDuration) {
       els.breakDuration.innerHTML = breakDurations.map((value) => `<option value="${value}" ${state.breakDuration === value ? "selected" : ""}>${value} minutes</option>`).join("");
     }
+    renderQuestionEditor();
   }
 
   function renderStats() {
@@ -580,6 +604,7 @@
     els.authGoogleSignIn.addEventListener("click", signInWithGoogle);
     els.historyGoogleSignIn.addEventListener("click", signInWithGoogle);
     els.historyForm.addEventListener("submit", saveQuestionSetup);
+    els.questionEditForm.addEventListener("submit", saveQuestionEdit);
     els.closeQuestionSetup.addEventListener("click", closeQuestionSetup);
     els.authSignOut.addEventListener("click", signOutOfCloud);
   }
@@ -587,6 +612,7 @@
   function changeDifficulty(difficulty) {
     const was = currentStep();
     state.difficulty = difficulty;
+    if (difficulty === "custom") ensureCustomFlow();
     state.decision = null;
     state.sessionComplete = false;
     state.completedIds = [];
@@ -869,8 +895,9 @@
     const minutes = Number(els.customDuration.value);
     if (!name || !Number.isFinite(minutes)) return;
     if (state.difficulty === "custom") {
+      ensureCustomFlow();
       const id = `custom-${Date.now()}`;
-      const customFlow = state.customFlow.slice().sort((a, b) => a.order - b.order);
+      const customFlow = getCustomFlow().slice().sort((a, b) => a.order - b.order);
       const afterId = els.customPosition.value;
       let order = Date.now();
       if (afterId && afterId !== "__end__") {
@@ -905,6 +932,7 @@
 
   function removeCustomStep(id) {
     if (state.difficulty === "custom") {
+      ensureCustomFlow();
       state.customFlow = state.customFlow.filter((item) => item.id !== id);
       state.currentIndex = Math.min(state.currentIndex, Math.max(0, state.customFlow.length - 1));
       state.remaining = getDurationSeconds(getWorkflow()[state.currentIndex]);
@@ -916,6 +944,7 @@
   }
 
   function moveCustomStep(id, dir) {
+    if (state.difficulty === "custom") ensureCustomFlow();
     const list = state.difficulty === "custom" ? state.customFlow : state.customSteps;
     const index = list.findIndex((item) => item.id === id);
     const next = index + dir;
@@ -1154,7 +1183,8 @@
           </div>
           <form class="pip-setup hidden" id="pipSetup">
             <input id="pipQuestionNumber" maxlength="12" placeholder="Question no.">
-            <input id="pipQuestionTitle" maxlength="120" placeholder="Question description" required>
+            <input id="pipQuestionTitle" maxlength="80" placeholder="Question name">
+            <input id="pipQuestionDescription" maxlength="160" placeholder="Description">
             <button type="submit">Start Question</button>
           </form>
           <div class="pip-actions" id="pipActions">
@@ -1184,9 +1214,9 @@
         event.preventDefault();
         const number = pipWindow.document.querySelector("#pipQuestionNumber").value;
         const title = pipWindow.document.querySelector("#pipQuestionTitle").value;
-        setCurrentQuestion(number, title);
-        renderAll();
-        if (state.running) startTimer();
+        const description = pipWindow.document.querySelector("#pipQuestionDescription").value;
+        setCurrentQuestion(number, title, description);
+        beginQuestionRun();
       });
       pipWindow.addEventListener("pagehide", () => {
         pipWindow = null;
@@ -1376,6 +1406,7 @@
     }
     els.questionNumber.value = state.currentQuestion?.number || "";
     els.questionTitle.value = state.currentQuestion?.title || "";
+    els.questionDescription.value = state.currentQuestion?.description || "";
     window.setTimeout(() => els.questionTitle.focus(), 0);
     renderHistory();
   }
@@ -1387,24 +1418,70 @@
       return;
     }
     const number = cleanQuestionNumber(els.questionNumber.value);
-    const title = cleanQuestionTitle(els.questionTitle.value) || "Untitled question";
-    setCurrentQuestion(number, title);
+    const title = cleanQuestionTitle(els.questionTitle.value);
+    const description = cleanQuestionDescription(els.questionDescription.value);
+    setCurrentQuestion(number, title, description);
     closeQuestionSetup();
-    renderAll();
-    if (state.running) startTimer();
+    beginQuestionRun();
   }
 
-  function setCurrentQuestion(number, title) {
+  function setCurrentQuestion(number, title, description = "") {
     state.currentQuestion = {
       id: state.currentQuestion?.id || `question-${Date.now()}`,
       number: cleanQuestionNumber(number),
-      title: cleanQuestionTitle(title) || "Untitled question",
+      title: cleanQuestionTitle(title),
+      description: cleanQuestionDescription(description),
       date: state.currentQuestion?.date || dayKey(),
       startedAt: state.currentQuestion?.startedAt || new Date().toISOString(),
       elapsedSeconds: state.currentQuestion?.elapsedSeconds || 0,
       completed: false
     };
-    state.running = !state.sessionComplete && currentStep()?.id !== "decision";
+    state.running = false;
+  }
+
+  function beginQuestionRun() {
+    stopTimer();
+    const item = currentStep();
+    if (!item || item.id === "decision" || state.breakActive || state.sessionComplete) {
+      state.running = false;
+      renderAll();
+      return;
+    }
+    state.running = true;
+    startTimer();
+    renderAll();
+  }
+
+  function renderQuestionEditor() {
+    if (!els.questionEditForm) return;
+    if (document.activeElement !== els.questionEditNumber) {
+      els.questionEditNumber.value = state.currentQuestion?.number || "";
+    }
+    if (document.activeElement !== els.questionEditTitle) {
+      els.questionEditTitle.value = state.currentQuestion?.title || "";
+    }
+    if (document.activeElement !== els.questionEditDescription) {
+      els.questionEditDescription.value = state.currentQuestion?.description || "";
+    }
+  }
+
+  function saveQuestionEdit(event) {
+    event.preventDefault();
+    const existing = state.currentQuestion || {
+      id: `question-${Date.now()}`,
+      date: dayKey(),
+      startedAt: new Date().toISOString(),
+      elapsedSeconds: 0,
+      completed: false
+    };
+    state.currentQuestion = {
+      ...existing,
+      number: cleanQuestionNumber(els.questionEditNumber.value),
+      title: cleanQuestionTitle(els.questionEditTitle.value),
+      description: cleanQuestionDescription(els.questionEditDescription.value),
+      completed: false
+    };
+    renderAll();
   }
 
   function recordCurrentQuestion() {
@@ -1523,10 +1600,10 @@
         ${entries.map((entry) => `
           <div class="history-item">
             <div>
-              <strong>${escapeHtml(getQuestionLabel(entry) || entry.title)}</strong>
-              <small>${escapeHtml(entry.date)} - Took ${escapeHtml(humanDuration(entry.elapsedSeconds))}</small>
+              <strong>${escapeHtml(getQuestionLabel(entry) || "Question")}</strong>
+              <small>${escapeHtml([entry.number ? `#${entry.number}` : "", entry.date, `Took ${humanDuration(entry.elapsedSeconds)}`].filter(Boolean).join(" - "))}</small>
             </div>
-            <span>${escapeHtml(entry.number ? `#${entry.number}` : "Question")}</span>
+            <span>${escapeHtml(entry.completedAt ? new Date(entry.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Done")}</span>
           </div>
         `).join("")}
       </section>
@@ -1544,8 +1621,7 @@
 
   function getQuestionLabel(question) {
     if (!question) return "";
-    const number = question.number ? `#${question.number}` : "";
-    return [number, question.title].filter(Boolean).join(" ");
+    return cleanQuestionTitle(question.title || "") || cleanQuestionDescription(question.description || "");
   }
 
   function groupHistoryByWeek(history) {
@@ -1561,11 +1637,14 @@
   function normalizeQuestion(question) {
     if (!question || typeof question !== "object") return null;
     const title = cleanQuestionTitle(question.title || "");
-    if (!title && question.completed) return null;
+    const description = cleanQuestionDescription(question.description || "");
+    const number = cleanQuestionNumber(question.number || "");
+    if (!title && !description && !number && question.completed) return null;
     return {
       id: String(question.id || `question-${Date.now()}`),
-      number: cleanQuestionNumber(question.number || ""),
+      number,
       title,
+      description,
       date: question.date || dayKey(),
       startedAt: question.startedAt || new Date().toISOString(),
       elapsedSeconds: Math.max(0, Math.floor(Number(question.elapsedSeconds) || 0)),
@@ -1575,7 +1654,7 @@
 
   function normalizeHistoryEntry(entry) {
     const question = normalizeQuestion(entry);
-    if (!question || !question.title) return null;
+    if (!question || (!question.title && !question.description && !question.number)) return null;
     return {
       ...question,
       completed: true,
@@ -1602,6 +1681,10 @@
 
   function cleanQuestionTitle(value) {
     return String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  }
+
+  function cleanQuestionDescription(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").slice(0, 180);
   }
 
   function humanDuration(seconds) {
