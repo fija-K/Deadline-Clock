@@ -154,10 +154,7 @@
     nextQuestionBtn: $("#nextQuestionBtn"),
     authStatus: $("#authStatus"),
     syncStatus: $("#syncStatus"),
-    authEmail: $("#authEmail"),
-    authPassword: $("#authPassword"),
-    authSignIn: $("#authSignIn"),
-    authSignUp: $("#authSignUp"),
+    authGoogleSignIn: $("#authGoogleSignIn"),
     authSignOut: $("#authSignOut")
   };
 
@@ -495,8 +492,7 @@
     els.hintHearts.addEventListener("click", handleHintClick);
     els.miniHearts.addEventListener("click", handleHintClick);
     els.nextQuestionBtn.addEventListener("click", nextQuestion);
-    els.authSignIn.addEventListener("click", () => signInWithEmail(false));
-    els.authSignUp.addEventListener("click", () => signInWithEmail(true));
+    els.authGoogleSignIn.addEventListener("click", signInWithGoogle);
     els.authSignOut.addEventListener("click", signOutOfCloud);
   }
 
@@ -1090,25 +1086,15 @@
     }
   }
 
-  async function signInWithEmail(createAccount) {
+  async function signInWithGoogle() {
     if (!cloud.ready || !cloud.authApi) {
       renderAuthUI("Add Firebase config first, then redeploy.");
       return;
     }
-    const email = els.authEmail.value.trim();
-    const password = els.authPassword.value;
-    if (!email || password.length < 6) {
-      renderAuthUI("Use an email and a password with 6+ characters.");
-      return;
-    }
     try {
-      renderAuthUI(createAccount ? "Creating account..." : "Signing in...");
-      if (createAccount) {
-        await cloud.authApi.createUserWithEmailAndPassword(cloud.auth, email, password);
-      } else {
-        await cloud.authApi.signInWithEmailAndPassword(cloud.auth, email, password);
-      }
-      els.authPassword.value = "";
+      renderAuthUI("Opening Google sign in...");
+      const provider = new cloud.authApi.GoogleAuthProvider();
+      await cloud.authApi.signInWithPopup(cloud.auth, provider);
     } catch (error) {
       renderAuthUI(cleanFirebaseMessage(error));
     }
@@ -1176,10 +1162,8 @@
       : cloud.configured
         ? "Sign in to sync across browsers and devices."
         : "Firebase sync is not configured.");
-    els.authEmail.disabled = signedIn || cloud.loading;
-    els.authPassword.disabled = signedIn || cloud.loading;
-    els.authSignIn.disabled = signedIn || cloud.loading || !cloud.configured;
-    els.authSignUp.disabled = signedIn || cloud.loading || !cloud.configured;
+    els.authGoogleSignIn.disabled = signedIn || cloud.loading || !cloud.configured;
+    els.authGoogleSignIn.classList.toggle("hidden", signedIn);
     els.authSignOut.classList.toggle("hidden", !signedIn);
   }
 

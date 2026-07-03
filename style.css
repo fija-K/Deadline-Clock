@@ -998,6 +998,25 @@ input, select {
   border: 1px solid var(--line);
 }
 
+.google-sign-in {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.google-sign-in span {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #4285f4;
+  font-weight: 900;
+  font-family: Arial, sans-serif;
+}
+
 .drawer-copy {
   color: var(--muted);
   line-height: 1.55;
