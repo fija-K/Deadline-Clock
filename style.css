@@ -209,10 +209,9 @@ svg {
 }
 
 .question-badge {
-  position: absolute;
-  top: 12px;
-  right: 16px;
-  max-width: 150px;
+  display: inline-block;
+  max-width: 100%;
+  margin-top: 8px;
   padding: 5px 9px;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -302,7 +301,7 @@ h1, h2, p {
 
 .difficulty-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
@@ -317,46 +316,11 @@ h1, h2, p {
 .difficulty-btn.easy { color: var(--success); }
 .difficulty-btn.medium { color: var(--warning); }
 .difficulty-btn.hard { color: var(--danger); }
+.difficulty-btn.custom { color: var(--primary); }
 .difficulty-btn.active.easy { background: color-mix(in srgb, var(--success) 42%, transparent); color: #7dffa9; border-color: transparent; }
 .difficulty-btn.active.medium { background: color-mix(in srgb, var(--warning) 20%, transparent); }
 .difficulty-btn.active.hard { background: color-mix(in srgb, var(--danger) 18%, transparent); }
-
-.custom-quick {
-  padding-top: 5px;
-}
-
-.side-custom-form {
-  display: grid;
-  gap: 8px;
-}
-
-.side-custom-form input,
-.side-custom-form select {
-  height: 34px;
-  border-radius: 8px;
-  font-size: 14px;
-}
-
-.side-custom-row {
-  display: grid;
-  grid-template-columns: 64px 1fr 38px;
-  gap: 8px;
-}
-
-.side-custom-row button {
-  display: grid;
-  place-items: center;
-  height: 34px;
-  border: 1px solid var(--primary);
-  border-radius: 8px;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.side-custom-row button svg {
-  width: 19px;
-  height: 19px;
-}
+.difficulty-btn.active.custom { background: var(--primary-soft); color: var(--primary); }
 
 .estimated {
   padding-top: 7px;
@@ -1827,6 +1791,7 @@ textarea {
   }
 
   .difficulty-grid {
+    grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
 

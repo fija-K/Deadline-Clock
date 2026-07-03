@@ -65,6 +65,7 @@
     theme: "midnight",
     timers: {},
     customSteps: [],
+    customFlow: [],
     currentIndex: 0,
     remaining: 2 * 60,
     running: false,
@@ -134,10 +135,6 @@
     customDuration: $("#customDuration"),
     customPosition: $("#customPosition"),
     customList: $("#customList"),
-    sidebarCustomForm: $("#sidebarCustomForm"),
-    sidebarCustomName: $("#sidebarCustomName"),
-    sidebarCustomDuration: $("#sidebarCustomDuration"),
-    sidebarCustomPosition: $("#sidebarCustomPosition"),
     breakThreshold: $("#breakThreshold"),
     breakDuration: $("#breakDuration"),
     breakModal: $("#breakModal"),
@@ -172,9 +169,10 @@
     historySignin: $("#historySignin"),
     historyGoogleSignIn: $("#historyGoogleSignIn"),
     historyForm: $("#historyForm"),
+    questionModal: $("#questionModal"),
+    closeQuestionSetup: $("#closeQuestionSetup"),
     questionNumber: $("#questionNumber"),
     questionTitle: $("#questionTitle"),
-    setupQuestionBtn: $("#setupQuestionBtn"),
     historyList: $("#historyList")
   };
 
@@ -205,6 +203,7 @@
   function normalizeState(next) {
     next.timers = next.timers || {};
     next.customSteps = Array.isArray(next.customSteps) ? next.customSteps : [];
+    next.customFlow = Array.isArray(next.customFlow) ? next.customFlow.map(normalizeCustomStep).filter(Boolean) : [];
     next.completedIds = Array.isArray(next.completedIds) ? next.completedIds : [];
     next.sessionComplete = Boolean(next.sessionComplete);
     if (!Number.isFinite(next.settingsVersion)) next.settingsVersion = 0;
@@ -253,15 +252,15 @@
       next.breakPending = false;
       next.breakRemaining = 0;
     }
-    if (!baseWorkflows[next.difficulty]) next.difficulty = "easy";
+    if (!baseWorkflows[next.difficulty] && next.difficulty !== "custom") next.difficulty = "easy";
     if (!themes.some(([id]) => id === next.theme)) {
       next.theme = next.theme === "paper" || next.theme === "amoled" ? "batman" : next.theme === "create" ? "ironman" : "midnight";
     }
     next.running = false;
     const workflow = getWorkflow(next);
-    if (next.currentIndex >= workflow.length) next.currentIndex = 0;
+    if (next.currentIndex >= workflow.length || next.currentIndex < 0) next.currentIndex = 0;
     if (hadLegacyStats || !Number.isFinite(next.remaining) || next.remaining < 0) {
-      next.remaining = getDurationSeconds(workflow[next.currentIndex], next);
+      next.remaining = workflow.length ? getDurationSeconds(workflow[next.currentIndex], next) : 0;
     }
     return next;
   }
@@ -284,6 +283,20 @@
   }
 
   function getWorkflow(source = state) {
+    if (source.difficulty === "custom") {
+      return source.customFlow
+        .slice()
+        .sort((a, b) => a.order - b.order)
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          minutes: item.minutes,
+          purpose: "Custom focus step.",
+          subtitle: "Your workflow, your order.",
+          icon: "icon-clock",
+          tip: "Build the process that matches this problem."
+        }));
+    }
     const base = baseWorkflows[source.difficulty].map((item) => ({ ...item }));
     const activeIds = source.decision ? ["read", "solve", "hints", ...branchAfterDecision[source.decision]] : base.map((item) => item.id);
     let filtered = base.filter((item) => activeIds.includes(item.id));
@@ -310,6 +323,7 @@
   }
 
   function getDurationMinutes(item, source = state) {
+    if (!item) return 0;
     return source.timers[timerKey(item.id, source)] ?? item.minutes;
   }
 
@@ -342,7 +356,7 @@
   function renderAll() {
     skipZeroDurationSteps();
     const workflow = getWorkflow();
-    if (state.currentIndex >= workflow.length) state.currentIndex = 0;
+    if (state.currentIndex >= workflow.length || state.currentIndex < 0) state.currentIndex = 0;
     renderDifficulty();
     renderRoadmap(workflow);
     renderTimer(workflow);
@@ -355,7 +369,7 @@
   }
 
   function renderDifficulty() {
-    els.difficultyGrid.innerHTML = ["easy", "medium", "hard"].map((id) => (
+    els.difficultyGrid.innerHTML = ["easy", "medium", "hard", "custom"].map((id) => (
       `<button class="difficulty-btn ${id} ${state.difficulty === id ? "active" : ""}" data-difficulty="${id}">${title(id)}</button>`
     )).join("");
   }
@@ -386,7 +400,29 @@
     const isDecision = item && item.id === "decision";
     els.timerContent.classList.toggle("hidden", isDecision);
     els.decisionScreen.classList.toggle("hidden", !isDecision);
-    if (!item) return;
+    if (!item) {
+      els.doneToast.classList.remove("show");
+      els.doneToast.setAttribute("aria-hidden", "true");
+      els.timerContent.classList.remove("hidden");
+      els.decisionScreen.classList.add("hidden");
+      els.hintHearts.classList.add("hidden");
+      els.stepHeroIcon.innerHTML = `<use href="#icon-plus"></use>`;
+      els.stepTitle.textContent = "Custom Workflow";
+      els.stepPurpose.textContent = "Create your first custom step.";
+      els.stepSubtitle.textContent = "Open Custom Steps and build from scratch.";
+      els.stepSubtitle.classList.remove("hidden");
+      els.timeReadout.textContent = "00:00";
+      els.stepDuration.textContent = "00:00";
+      els.progressFill.style.width = "0%";
+      els.tipText.textContent = "Use Custom Steps to decide your own process.";
+      els.toggleRun.innerHTML = `<svg><use href="#icon-play"></use></svg><span>Start</span>`;
+      els.miniClockStep.textContent = "Custom Workflow";
+      els.miniClockTime.textContent = "00:00";
+      els.miniStepDuration.textContent = "00:00";
+      els.miniProgressFill.style.width = "0%";
+      updatePiP();
+      return;
+    }
     els.doneToast.classList.toggle("show", state.sessionComplete);
     els.doneToast.setAttribute("aria-hidden", String(!state.sessionComplete));
     if (isDecision) {
@@ -439,9 +475,8 @@
       </span>
     </div>`).join("");
 
-    const basePositions = baseWorkflows[state.difficulty].filter((item) => item.id !== "decision");
+    const basePositions = (baseWorkflows[state.difficulty] || []).filter((item) => item.id !== "decision");
     els.customPosition.innerHTML = basePositions.map((item) => `<option value="${item.id}">After ${escapeHtml(item.name)}</option>`).join("");
-    els.sidebarCustomPosition.innerHTML = basePositions.map((item) => `<option value="${item.id}">After ${escapeHtml(item.name)}</option>`).join("");
     els.customList.innerHTML = state.customSteps.length
       ? state.customSteps.map((item, index) => `<div class="custom-item">
           <div><strong>${escapeHtml(item.name)}</strong><br><small>${item.minutes} min after ${escapeHtml(labelFor(item.afterId))}</small></div>
@@ -452,6 +487,24 @@
           </div>
         </div>`).join("")
       : `<p class="drawer-copy">No custom steps yet.</p>`;
+
+    if (state.difficulty === "custom") {
+      const customFlow = state.customFlow.slice().sort((a, b) => a.order - b.order);
+      els.customPosition.innerHTML = [
+        `<option value="__end__">At end</option>`,
+        ...customFlow.map((item) => `<option value="${item.id}">After ${escapeHtml(item.name)}</option>`)
+      ].join("");
+      els.customList.innerHTML = customFlow.length
+        ? customFlow.map((item) => `<div class="custom-item">
+            <div><strong>${escapeHtml(item.name)}</strong><br><small>${item.minutes} min in custom flow</small></div>
+            <div class="custom-item-controls">
+              <button data-custom-move="${item.id}" data-dir="-1" title="Move up">Up</button>
+              <button data-custom-move="${item.id}" data-dir="1" title="Move down">Down</button>
+              <button data-custom-remove="${item.id}" title="Remove">x</button>
+            </div>
+          </div>`).join("")
+        : `<p class="drawer-copy">No custom steps yet. Add one to start your custom flow.</p>`;
+    }
 
     if (document.activeElement !== els.breakThreshold) {
       els.breakThreshold.innerHTML = thresholds.map((value) => `<option value="${value}" ${state.breakThreshold === value ? "selected" : ""}>${value} minutes</option>`).join("");
@@ -517,7 +570,6 @@
     $("#skipBreak").addEventListener("click", finishBreak);
     els.applyBreakSettings.addEventListener("click", applyBreakSettings);
     els.customForm.addEventListener("submit", addCustomStep);
-    els.sidebarCustomForm.addEventListener("submit", addCustomStep);
     els.miniToggleRun.addEventListener("click", toggleRun);
     els.miniSkipStep.addEventListener("click", () => completeCurrentStep(false));
     els.miniPipBack.addEventListener("click", closeMiniMode);
@@ -528,7 +580,7 @@
     els.authGoogleSignIn.addEventListener("click", signInWithGoogle);
     els.historyGoogleSignIn.addEventListener("click", signInWithGoogle);
     els.historyForm.addEventListener("submit", saveQuestionSetup);
-    els.setupQuestionBtn.addEventListener("click", () => showQuestionSetup(true));
+    els.closeQuestionSetup.addEventListener("click", closeQuestionSetup);
     els.authSignOut.addEventListener("click", signOutOfCloud);
   }
 
@@ -539,11 +591,13 @@
     state.sessionComplete = false;
     state.completedIds = [];
     state.hintsUsed = 0;
-    state.currentIndex = Math.min(was?.id === "solve" ? 1 : 0, getWorkflow().length - 1);
-    state.remaining = getDurationSeconds(getWorkflow()[state.currentIndex]);
+    const workflow = getWorkflow();
+    state.currentIndex = workflow.length ? Math.min(was?.id === "solve" ? 1 : 0, workflow.length - 1) : 0;
+    state.remaining = workflow.length ? getDurationSeconds(workflow[state.currentIndex]) : 0;
     state.running = false;
     renderAll();
     stopTimer();
+    if (difficulty === "custom") openDrawer("custom");
   }
 
   function adjustDuration(stepId, delta) {
@@ -590,6 +644,12 @@
 
   function toggleRun() {
     if (state.sessionComplete) return;
+    if (!currentStep()) {
+      state.running = false;
+      if (state.difficulty === "custom") openDrawer("custom");
+      renderAll();
+      return;
+    }
     state.running = !state.running;
     state.running ? startTimer() : stopTimer();
     renderAll();
@@ -597,6 +657,11 @@
 
   function startTimer() {
     stopTimer();
+    if (!currentStep()) {
+      state.running = false;
+      renderAll();
+      return;
+    }
     if (currentStep()?.id === "decision" || state.breakActive) return;
     if (state.remaining <= 0) {
       completeCurrentStep(false);
@@ -626,6 +691,19 @@
     if (!item || item.id === "decision") return;
     const durationSeconds = getDurationSeconds(item);
     markCompleted(item.id);
+    if (state.difficulty === "custom" && state.currentIndex >= getWorkflow().length - 1) {
+      if (!state.sessionComplete) {
+        state.stats.streak += 1;
+      }
+      recordCurrentQuestion();
+      state.sessionComplete = true;
+      state.running = false;
+      state.remaining = 0;
+      stopTimer();
+      notify();
+      renderAll();
+      return;
+    }
     if (item.id === "notes") {
       if (!state.sessionComplete) {
         state.stats.streak += 1;
@@ -787,38 +865,69 @@
 
   function addCustomStep(event) {
     event.preventDefault();
-    const isSidebarForm = event.currentTarget === els.sidebarCustomForm;
-    const nameInput = isSidebarForm ? els.sidebarCustomName : els.customName;
-    const durationInput = isSidebarForm ? els.sidebarCustomDuration : els.customDuration;
-    const positionInput = isSidebarForm ? els.sidebarCustomPosition : els.customPosition;
-    const name = nameInput.value.trim();
-    const minutes = Number(durationInput.value);
+    const name = els.customName.value.trim();
+    const minutes = Number(els.customDuration.value);
     if (!name || !Number.isFinite(minutes)) return;
+    if (state.difficulty === "custom") {
+      const id = `custom-${Date.now()}`;
+      const customFlow = state.customFlow.slice().sort((a, b) => a.order - b.order);
+      const afterId = els.customPosition.value;
+      let order = Date.now();
+      if (afterId && afterId !== "__end__") {
+        const index = customFlow.findIndex((item) => item.id === afterId);
+        if (index >= 0) order = customFlow[index].order + 0.5;
+      }
+      state.customFlow.push({
+        id,
+        name,
+        minutes: Math.max(0, Math.min(60, minutes)),
+        order
+      });
+      state.customFlow.sort((a, b) => a.order - b.order).forEach((item, index) => item.order = index);
+      state.currentIndex = Math.min(state.currentIndex, Math.max(0, state.customFlow.length - 1));
+      if (state.customFlow.length === 1) state.remaining = getDurationSeconds(getWorkflow()[0]);
+      els.customForm.reset();
+      els.customDuration.value = 3;
+      renderAll();
+      return;
+    }
     state.customSteps.push({
       id: `custom-${Date.now()}`,
       name,
       minutes: Math.max(0, Math.min(60, minutes)),
-      afterId: positionInput.value,
+      afterId: els.customPosition.value,
       order: Date.now()
     });
-    event.currentTarget.reset();
-    durationInput.value = 3;
+    els.customForm.reset();
+    els.customDuration.value = 3;
     renderAll();
   }
 
   function removeCustomStep(id) {
+    if (state.difficulty === "custom") {
+      state.customFlow = state.customFlow.filter((item) => item.id !== id);
+      state.currentIndex = Math.min(state.currentIndex, Math.max(0, state.customFlow.length - 1));
+      state.remaining = getDurationSeconds(getWorkflow()[state.currentIndex]);
+      renderAll();
+      return;
+    }
     state.customSteps = state.customSteps.filter((item) => item.id !== id);
     renderAll();
   }
 
   function moveCustomStep(id, dir) {
-    const index = state.customSteps.findIndex((item) => item.id === id);
+    const list = state.difficulty === "custom" ? state.customFlow : state.customSteps;
+    const index = list.findIndex((item) => item.id === id);
     const next = index + dir;
-    if (index < 0 || next < 0 || next >= state.customSteps.length) return;
-    const copy = state.customSteps.slice();
+    if (index < 0 || next < 0 || next >= list.length) return;
+    const copy = list.slice();
     [copy[index], copy[next]] = [copy[next], copy[index]];
     copy.forEach((item, order) => item.order = order);
-    state.customSteps = copy;
+    if (state.difficulty === "custom") {
+      state.customFlow = copy;
+    } else {
+      state.customSteps = copy;
+    }
     renderAll();
   }
 
@@ -852,7 +961,7 @@
     }
     try {
       pipWindow = await window.documentPictureInPicture.requestWindow({ width: 220, height: 220 });
-      pipWindow.document.title = "Problem Clock";
+      pipWindow.document.title = "DeadlineClock";
       pipWindow.document.body.innerHTML = `
         <style>
           :root { color-scheme: dark; }
@@ -1244,12 +1353,16 @@
     els.historyModal.classList.remove("hidden");
     els.historyModal.setAttribute("aria-hidden", "false");
     renderHistory();
-    if (cloud.user && !state.currentQuestion) showQuestionSetup(false);
   }
 
   function closeHistory() {
     els.historyModal.classList.add("hidden");
     els.historyModal.setAttribute("aria-hidden", "true");
+  }
+
+  function closeQuestionSetup() {
+    els.questionModal.classList.add("hidden");
+    els.questionModal.setAttribute("aria-hidden", "true");
   }
 
   function showQuestionSetup(forceOpen) {
@@ -1258,8 +1371,8 @@
       return;
     }
     if (forceOpen) {
-      els.historyModal.classList.remove("hidden");
-      els.historyModal.setAttribute("aria-hidden", "false");
+      els.questionModal.classList.remove("hidden");
+      els.questionModal.setAttribute("aria-hidden", "false");
     }
     els.questionNumber.value = state.currentQuestion?.number || "";
     els.questionTitle.value = state.currentQuestion?.title || "";
@@ -1276,7 +1389,7 @@
     const number = cleanQuestionNumber(els.questionNumber.value);
     const title = cleanQuestionTitle(els.questionTitle.value) || "Untitled question";
     setCurrentQuestion(number, title);
-    closeHistory();
+    closeQuestionSetup();
     renderAll();
     if (state.running) startTimer();
   }
@@ -1392,7 +1505,6 @@
     const signedIn = Boolean(cloud.user);
     els.historySignin.classList.toggle("hidden", signedIn);
     els.historyForm.classList.toggle("hidden", !signedIn);
-    els.setupQuestionBtn.disabled = !signedIn;
     const questionLabel = signedIn ? getQuestionLabel(state.currentQuestion) : "";
     els.questionBadge.textContent = questionLabel;
     els.questionBadge.classList.toggle("hidden", !questionLabel);
@@ -1469,6 +1581,18 @@
       completed: true,
       completedAt: entry.completedAt || new Date().toISOString(),
       week: entry.week || weekKey()
+    };
+  }
+
+  function normalizeCustomStep(item) {
+    if (!item || typeof item !== "object") return null;
+    const name = String(item.name || "").trim().slice(0, 28);
+    if (!name) return null;
+    return {
+      id: String(item.id || `custom-${Date.now()}`),
+      name,
+      minutes: Math.max(0, Math.min(60, Number(item.minutes) || 0)),
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : Date.now()
     };
   }
 

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Problem Clock</title>
+    <title>DeadlineClock</title>
     <link rel="stylesheet" href="style.css">
   </head>
   <body>
@@ -41,27 +41,15 @@
           <div class="logo-mark"><svg><use href="#icon-clock"></use></svg></div>
           <div>
             <span class="welcome-name hidden" id="welcomeName"></span>
-            <h1>The DeadlineClock</h1>
+            <h1>DeadlineClock</h1>
             <p>One problem. One process.</p>
+            <span class="question-badge hidden" id="questionBadge"></span>
           </div>
-          <span class="question-badge hidden" id="questionBadge"></span>
         </div>
 
         <section class="side-section">
           <h2>Difficulty</h2>
           <div class="difficulty-grid" id="difficultyGrid"></div>
-        </section>
-
-        <section class="side-section custom-quick">
-          <h2>Customized Steps</h2>
-          <form class="side-custom-form" id="sidebarCustomForm">
-            <input id="sidebarCustomName" maxlength="28" required placeholder="Step name">
-            <div class="side-custom-row">
-              <input id="sidebarCustomDuration" type="number" min="0" max="60" value="3" required aria-label="Duration minutes">
-              <select id="sidebarCustomPosition" aria-label="Position"></select>
-              <button type="submit" title="Add custom step"><svg><use href="#icon-plus"></use></svg></button>
-            </div>
-          </form>
         </section>
 
         <section class="side-section estimated">
@@ -267,17 +255,27 @@
           </button>
         </div>
 
+        <div class="history-list-head">
+          <strong>Saved History</strong>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+    </section>
+
+    <section class="history-modal hidden" id="questionModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="questionSetupTitle">
+      <div class="history-card">
+        <div class="history-head">
+          <div>
+            <span>Question</span>
+            <h2 id="questionSetupTitle">Set Up Question</h2>
+          </div>
+          <button class="icon-btn" id="closeQuestionSetup" title="Close">x</button>
+        </div>
         <form class="history-form" id="historyForm">
           <label>Question no. optional<input id="questionNumber" type="text" maxlength="12" placeholder="42"></label>
           <label>Question name / description<textarea id="questionTitle" maxlength="120" placeholder="Two Sum, graph BFS, DP notes..."></textarea></label>
-          <button type="submit" class="wide-primary">Start / Save Question</button>
+          <button type="submit" class="wide-primary">Start Question</button>
         </form>
-
-        <div class="history-list-head">
-          <strong>Saved History</strong>
-          <button type="button" id="setupQuestionBtn">Set Up Current Question</button>
-        </div>
-        <div class="history-list" id="historyList"></div>
       </div>
     </section>
 
