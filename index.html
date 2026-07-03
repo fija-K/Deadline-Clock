@@ -162,6 +162,7 @@
         <button data-tab="timers">Timers</button>
         <button data-tab="custom">Custom Steps</button>
         <button data-tab="breaks">Breaks</button>
+        <button data-tab="account">Account</button>
         <button data-tab="reset">Reset Defaults</button>
       </div>
 
@@ -187,6 +188,22 @@
         <label class="select-row">Focus threshold<select id="breakThreshold"></select></label>
         <label class="select-row">Break duration<select id="breakDuration"></select></label>
         <button class="wide-primary" id="applyBreakSettings" type="button">Apply Change</button>
+      </section>
+
+      <section class="drawer-panel" data-panel="account">
+        <div class="account-card">
+          <div>
+            <span id="authStatus">Local only</span>
+            <strong id="syncStatus">Firebase sync is not configured.</strong>
+          </div>
+          <label>Email<input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label>Password<input id="authPassword" type="password" autocomplete="current-password" placeholder="6+ characters"></label>
+          <div class="account-actions">
+            <button type="button" class="wide-primary" id="authSignIn">Sign In</button>
+            <button type="button" class="wide-primary secondary" id="authSignUp">Create Account</button>
+          </div>
+          <button type="button" class="danger-btn hidden" id="authSignOut">Sign Out</button>
+        </div>
       </section>
 
       <section class="drawer-panel" data-panel="reset">
@@ -218,6 +235,7 @@
       <button type="button" id="nextQuestionBtn">Next Question</button>
     </div>
 
+    <script src="firebase-config.js"></script>
     <script src="script.js"></script>
   </body>
 </html>

@@ -1,5 +1,11 @@
 (function () {
   const STORAGE_KEY = "problemClock.v1";
+  const THEME_KEY = "problemClock.theme";
+  const FIREBASE_IMPORTS = {
+    app: "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js",
+    auth: "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js",
+    firestore: "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js"
+  };
   const dayKey = () => new Date().toISOString().slice(0, 10);
   const weekKey = () => {
     const date = new Date();
@@ -82,6 +88,18 @@
   let tickHandle = null;
   let breakHandle = null;
   let pipWindow = null;
+  let cloudSaveHandle = null;
+  const cloud = {
+    configured: false,
+    ready: false,
+    loading: false,
+    suppressSave: false,
+    user: null,
+    auth: null,
+    db: null,
+    authApi: null,
+    firestore: null
+  };
 
   const $ = (selector) => document.querySelector(selector);
   const els = {
@@ -133,7 +151,14 @@
     miniPipBack: $("#miniPipBack"),
     applyBreakSettings: $("#applyBreakSettings"),
     doneToast: $("#doneToast"),
-    nextQuestionBtn: $("#nextQuestionBtn")
+    nextQuestionBtn: $("#nextQuestionBtn"),
+    authStatus: $("#authStatus"),
+    syncStatus: $("#syncStatus"),
+    authEmail: $("#authEmail"),
+    authPassword: $("#authPassword"),
+    authSignIn: $("#authSignIn"),
+    authSignUp: $("#authSignUp"),
+    authSignOut: $("#authSignOut")
   };
 
   function step(id, name, minutes, purpose, subtitle, detailOrIcon, iconOrTip, maybeTip) {
@@ -152,9 +177,11 @@
   function loadState() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      return normalizeState({ ...defaultState, ...(saved || {}) });
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      return normalizeState({ ...defaultState, ...(saved || {}), ...(savedTheme ? { theme: savedTheme } : {}) });
     } catch {
-      return normalizeState({ ...defaultState });
+      const savedTheme = localStorage.getItem(THEME_KEY);
+      return normalizeState({ ...defaultState, ...(savedTheme ? { theme: savedTheme } : {}) });
     }
   }
 
@@ -218,7 +245,20 @@
   }
 
   function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    const payload = serializeState();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    localStorage.setItem(THEME_KEY, payload.theme);
+    scheduleCloudSave();
+  }
+
+  function serializeState(source = state) {
+    return {
+      ...source,
+      running: false,
+      pinned: false,
+      breakActive: false,
+      breakRemaining: 0
+    };
   }
 
   function getWorkflow(source = state) {
@@ -272,6 +312,7 @@
     document.documentElement.dataset.theme = state.theme;
     renderAll();
     bindEvents();
+    initCloudSync();
     if (state.running) startTimer();
     if (state.breakActive) showBreakModal(true);
   }
@@ -454,6 +495,9 @@
     els.hintHearts.addEventListener("click", handleHintClick);
     els.miniHearts.addEventListener("click", handleHintClick);
     els.nextQuestionBtn.addEventListener("click", nextQuestion);
+    els.authSignIn.addEventListener("click", () => signInWithEmail(false));
+    els.authSignUp.addEventListener("click", () => signInWithEmail(true));
+    els.authSignOut.addEventListener("click", signOutOfCloud);
   }
 
   function changeDifficulty(difficulty) {
@@ -482,8 +526,10 @@
   }
 
   function setTheme(theme) {
+    if (!themes.some(([id]) => id === theme)) return;
     state.theme = theme;
     document.documentElement.dataset.theme = theme;
+    save();
     renderAll();
   }
 
@@ -491,6 +537,7 @@
     document.querySelectorAll("[data-tab]").forEach((button) => button.classList.toggle("active", button.dataset.tab === tab));
     document.querySelectorAll("[data-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === tab));
     els.drawerTitle.textContent = title(tab === "breaks" ? "Break Settings" : tab === "custom" ? "Custom Steps" : tab);
+    renderAuthUI();
   }
 
   function openDrawer(tab) {
@@ -650,6 +697,7 @@
     stopTimer();
     if (breakHandle) clearInterval(breakHandle);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(THEME_KEY);
     state = normalizeState({ ...defaultState });
     document.documentElement.dataset.theme = state.theme;
     els.breakModal.classList.add("hidden");
@@ -698,10 +746,10 @@
     renderAll();
   }
 
-  function togglePinned() {
+  async function togglePinned() {
     if (!state.pinned) {
       state.pinned = true;
-      openPictureInPicture();
+      await openPictureInPicture();
     } else {
       closeMiniMode();
     }
@@ -716,7 +764,10 @@
   }
 
   async function openPictureInPicture() {
-    if (!("documentPictureInPicture" in window)) return;
+    if (!("documentPictureInPicture" in window)) {
+      showMiniFallbackMessage("Floating mini is blocked here, so mini opened on the page.");
+      return;
+    }
     try {
       pipWindow = await window.documentPictureInPicture.requestWindow({ width: 220, height: 220 });
       pipWindow.document.title = "Problem Clock";
@@ -923,6 +974,7 @@
       updatePiP();
     } catch {
       pipWindow = null;
+      showMiniFallbackMessage("Floating mini was blocked, so mini opened on the page.");
     }
   }
 
@@ -1000,6 +1052,147 @@
     els.doneToast.classList.remove("show");
     els.doneToast.setAttribute("aria-hidden", "true");
     renderAll();
+  }
+
+  async function initCloudSync() {
+    const config = window.PROBLEM_CLOCK_FIREBASE_CONFIG;
+    cloud.configured = Boolean(config && config.apiKey && config.projectId);
+    renderAuthUI();
+    if (!cloud.configured) return;
+    try {
+      cloud.loading = true;
+      renderAuthUI("Loading Firebase sync...");
+      const [appMod, authMod, firestoreMod] = await Promise.all([
+        import(FIREBASE_IMPORTS.app),
+        import(FIREBASE_IMPORTS.auth),
+        import(FIREBASE_IMPORTS.firestore)
+      ]);
+      const app = appMod.initializeApp(config);
+      cloud.auth = authMod.getAuth(app);
+      cloud.db = firestoreMod.getFirestore(app);
+      cloud.authApi = authMod;
+      cloud.firestore = firestoreMod;
+      cloud.ready = true;
+      authMod.onAuthStateChanged(cloud.auth, async (user) => {
+        cloud.user = user;
+        if (user) {
+          await loadCloudState();
+        } else {
+          renderAuthUI();
+        }
+      });
+    } catch {
+      cloud.ready = false;
+      renderAuthUI("Firebase could not load. Local save is still working.");
+    } finally {
+      cloud.loading = false;
+      renderAuthUI();
+    }
+  }
+
+  async function signInWithEmail(createAccount) {
+    if (!cloud.ready || !cloud.authApi) {
+      renderAuthUI("Add Firebase config first, then redeploy.");
+      return;
+    }
+    const email = els.authEmail.value.trim();
+    const password = els.authPassword.value;
+    if (!email || password.length < 6) {
+      renderAuthUI("Use an email and a password with 6+ characters.");
+      return;
+    }
+    try {
+      renderAuthUI(createAccount ? "Creating account..." : "Signing in...");
+      if (createAccount) {
+        await cloud.authApi.createUserWithEmailAndPassword(cloud.auth, email, password);
+      } else {
+        await cloud.authApi.signInWithEmailAndPassword(cloud.auth, email, password);
+      }
+      els.authPassword.value = "";
+    } catch (error) {
+      renderAuthUI(cleanFirebaseMessage(error));
+    }
+  }
+
+  async function signOutOfCloud() {
+    if (!cloud.ready || !cloud.authApi) return;
+    await cloud.authApi.signOut(cloud.auth);
+    cloud.user = null;
+    renderAuthUI("Signed out. This browser will keep saving locally.");
+  }
+
+  async function loadCloudState() {
+    if (!cloud.ready || !cloud.user) return;
+    try {
+      renderAuthUI("Loading synced progress...");
+      const ref = cloudStateRef();
+      const snap = await cloud.firestore.getDoc(ref);
+      if (snap.exists() && snap.data()?.state) {
+        cloud.suppressSave = true;
+        state = normalizeState({ ...defaultState, ...snap.data().state });
+        document.documentElement.dataset.theme = state.theme;
+        cloud.suppressSave = false;
+        renderAll();
+      } else {
+        await saveCloudState();
+      }
+      renderAuthUI("Synced with your account.");
+    } catch {
+      cloud.suppressSave = false;
+      renderAuthUI("Could not load cloud progress. Local save is still working.");
+    }
+  }
+
+  function scheduleCloudSave() {
+    if (cloud.suppressSave || !cloud.ready || !cloud.user) return;
+    if (cloudSaveHandle) clearTimeout(cloudSaveHandle);
+    cloudSaveHandle = window.setTimeout(saveCloudState, 650);
+  }
+
+  async function saveCloudState() {
+    if (!cloud.ready || !cloud.user) return;
+    try {
+      const ref = cloudStateRef();
+      await cloud.firestore.setDoc(ref, {
+        state: serializeState(),
+        updatedAt: cloud.firestore.serverTimestamp()
+      }, { merge: true });
+      renderAuthUI("Synced just now.");
+    } catch {
+      renderAuthUI("Cloud save failed. Local save is still working.");
+    }
+  }
+
+  function cloudStateRef() {
+    return cloud.firestore.doc(cloud.db, "users", cloud.user.uid, "state", "current");
+  }
+
+  function renderAuthUI(message) {
+    if (!els.authStatus || !els.syncStatus) return;
+    const signedIn = Boolean(cloud.user);
+    els.authStatus.textContent = signedIn ? "Signed in" : cloud.configured ? "Account sync" : "Local only";
+    els.syncStatus.textContent = message || (signedIn
+      ? `Saving as ${cloud.user.email || "your account"}`
+      : cloud.configured
+        ? "Sign in to sync across browsers and devices."
+        : "Firebase sync is not configured.");
+    els.authEmail.disabled = signedIn || cloud.loading;
+    els.authPassword.disabled = signedIn || cloud.loading;
+    els.authSignIn.disabled = signedIn || cloud.loading || !cloud.configured;
+    els.authSignUp.disabled = signedIn || cloud.loading || !cloud.configured;
+    els.authSignOut.classList.toggle("hidden", !signedIn);
+  }
+
+  function cleanFirebaseMessage(error) {
+    const code = error?.code ? error.code.replace("auth/", "").replaceAll("-", " ") : "Firebase error";
+    return code.charAt(0).toUpperCase() + code.slice(1) + ".";
+  }
+
+  function showMiniFallbackMessage(message) {
+    els.pinBtn.title = message;
+    window.setTimeout(() => {
+      els.pinBtn.title = "Mini clock";
+    }, 2500);
   }
 
   function applyPiPTheme() {
