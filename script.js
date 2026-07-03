@@ -315,6 +315,7 @@
   }
 
   function renderAll() {
+    skipZeroDurationSteps();
     const workflow = getWorkflow();
     if (state.currentIndex >= workflow.length) state.currentIndex = 0;
     renderDifficulty();
@@ -515,9 +516,10 @@
     const item = workflow.find((candidate) => candidate.id === stepId);
     if (!item || item.id === "decision") return;
     const key = timerKey(stepId);
-    const next = Math.max(1, Math.min(90, getDurationMinutes(item) + delta));
+    const next = Math.max(0, Math.min(90, getDurationMinutes(item) + delta));
     state.timers[key] = next;
     if (currentStep()?.id === stepId) state.remaining = Math.min(state.remaining, next * 60);
+    skipZeroDurationSteps();
     renderAll();
   }
 
@@ -559,6 +561,10 @@
   function startTimer() {
     stopTimer();
     if (currentStep()?.id === "decision" || state.breakActive) return;
+    if (state.remaining <= 0) {
+      completeCurrentStep(false);
+      return;
+    }
     tickHandle = setInterval(() => {
       if (!state.running) return;
       state.remaining -= 1;
@@ -623,6 +629,11 @@
   }
 
   function checkBreakOrContinue(shouldRun) {
+    skipZeroDurationSteps();
+    if (state.sessionComplete) {
+      renderAll();
+      return;
+    }
     if (state.focusTime >= state.breakThreshold) {
       state.breakPending = true;
       state.running = false;
@@ -634,6 +645,38 @@
     state.running = shouldRun;
     renderAll();
     if (state.running) startTimer();
+  }
+
+  function skipZeroDurationSteps() {
+    const workflow = getWorkflow();
+    while (!state.sessionComplete) {
+      const item = workflow[state.currentIndex];
+      if (!item || item.id === "decision" || getDurationSeconds(item) > 0) return;
+      markCompleted(item.id);
+      state.remaining = 0;
+      if (item.id === "notes") {
+        if (!state.sessionComplete) state.stats.streak += 1;
+        state.sessionComplete = true;
+        state.running = false;
+        stopTimer();
+        return;
+      }
+      if (item.id === "hints") {
+        state.currentIndex = workflow.findIndex((candidate) => candidate.id === "decision");
+        state.running = false;
+        stopTimer();
+        return;
+      }
+      state.hintsUsed = 0;
+      if (state.currentIndex >= workflow.length - 1) {
+        state.sessionComplete = true;
+        state.running = false;
+        stopTimer();
+        return;
+      }
+      state.currentIndex = Math.min(state.currentIndex + 1, workflow.length - 1);
+      state.remaining = getDurationSeconds(workflow[state.currentIndex]);
+    }
   }
 
   function showBreakModal(resumeExisting) {
@@ -711,7 +754,7 @@
     state.customSteps.push({
       id: `custom-${Date.now()}`,
       name,
-      minutes: Math.max(1, Math.min(60, minutes)),
+      minutes: Math.max(0, Math.min(60, minutes)),
       afterId: els.customPosition.value,
       order: Date.now()
     });
