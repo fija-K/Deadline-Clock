@@ -40,6 +40,7 @@
         <div class="brand-row">
           <div class="logo-mark"><svg><use href="#icon-clock"></use></svg></div>
           <div>
+            <span class="welcome-name hidden" id="welcomeName"></span>
             <h1>DSA FOCUS</h1>
             <p>One problem. One process.</p>
           </div>
@@ -196,6 +197,7 @@
             <span id="authStatus">Local only</span>
             <strong id="syncStatus">Firebase sync is not configured.</strong>
           </div>
+          <label>Enter your nickname<input id="nicknameInput" type="text" maxlength="18" autocomplete="nickname" placeholder="fija"></label>
           <button type="button" class="wide-primary secondary google-sign-in" id="authGoogleSignIn">
             <span>G</span>
             Continue with Google

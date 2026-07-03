@@ -81,7 +81,8 @@
     stats: { date: dayKey(), week: weekKey(), todayFocus: 0, weekFocus: 0, streak: 0 },
     breakPending: false,
     breakActive: false,
-    breakRemaining: 0
+    breakRemaining: 0,
+    nickname: ""
   };
 
   let state = loadState();
@@ -152,6 +153,8 @@
     applyBreakSettings: $("#applyBreakSettings"),
     doneToast: $("#doneToast"),
     nextQuestionBtn: $("#nextQuestionBtn"),
+    welcomeName: $("#welcomeName"),
+    nicknameInput: $("#nicknameInput"),
     authStatus: $("#authStatus"),
     syncStatus: $("#syncStatus"),
     authGoogleSignIn: $("#authGoogleSignIn"),
@@ -196,6 +199,7 @@
     }
     if (!Number.isFinite(next.hintsUsed)) next.hintsUsed = 0;
     next.hintsUsed = Math.max(0, Math.min(3, next.hintsUsed));
+    next.nickname = normalizeNickname(next.nickname || "");
     const hadLegacyStats = next.stats && (
       Object.prototype.hasOwnProperty.call(next.stats, "today") ||
       Object.prototype.hasOwnProperty.call(next.stats, "weeklyGoal")
@@ -324,6 +328,7 @@
     renderWorkspace();
     renderStats();
     renderTopButtons();
+    renderAccount();
     save();
   }
 
@@ -493,6 +498,7 @@
     els.hintHearts.addEventListener("click", handleHintClick);
     els.miniHearts.addEventListener("click", handleHintClick);
     els.nextQuestionBtn.addEventListener("click", nextQuestion);
+    els.nicknameInput.addEventListener("input", updateNickname);
     els.authGoogleSignIn.addEventListener("click", signInWithGoogle);
     els.authSignOut.addEventListener("click", signOutOfCloud);
   }
@@ -1145,6 +1151,14 @@
     }
   }
 
+  function updateNickname() {
+    const nickname = normalizeNickname(els.nicknameInput.value);
+    state.nickname = nickname;
+    els.nicknameInput.value = nickname;
+    renderAccount();
+    save();
+  }
+
   async function signOutOfCloud() {
     if (!cloud.ready || !cloud.authApi) return;
     await cloud.authApi.signOut(cloud.auth);
@@ -1210,6 +1224,26 @@
     els.authGoogleSignIn.disabled = signedIn || cloud.loading || !cloud.configured;
     els.authGoogleSignIn.classList.toggle("hidden", signedIn);
     els.authSignOut.classList.toggle("hidden", !signedIn);
+    renderAccount();
+  }
+
+  function renderAccount() {
+    if (!els.nicknameInput || !els.welcomeName) return;
+    if (document.activeElement !== els.nicknameInput) {
+      els.nicknameInput.value = state.nickname || "";
+    }
+    const showWelcome = Boolean(cloud.user && state.nickname);
+    els.welcomeName.textContent = showWelcome ? `wlcm @${state.nickname}` : "";
+    els.welcomeName.classList.toggle("hidden", !showWelcome);
+  }
+
+  function normalizeNickname(value) {
+    return String(value || "")
+      .trim()
+      .replace(/^@+/, "")
+      .replace(/\s+/g, "-")
+      .replace(/[^a-zA-Z0-9_-]/g, "")
+      .slice(0, 18);
   }
 
   function cleanFirebaseMessage(error) {

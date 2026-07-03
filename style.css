@@ -234,6 +234,16 @@ h1, h2, p {
   letter-spacing: 0;
 }
 
+.welcome-name {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
 .brand-row p {
   margin-top: 6px;
   color: var(--muted);
