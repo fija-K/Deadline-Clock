@@ -1,5 +1,6 @@
-window.PROBLEM_CLOCK_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyD5DEyW66-EpJOVrZ54_vzdBOuOgKA",
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyD5DEyW66-EpJOVrZ54_vzdBOu0KWuOgKA",
   authDomain: "deadline-clock.firebaseapp.com",
   projectId: "deadline-clock",
   storageBucket: "deadline-clock.firebasestorage.app",
