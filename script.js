@@ -516,9 +516,11 @@
     const item = workflow.find((candidate) => candidate.id === stepId);
     if (!item || item.id === "decision") return;
     const key = timerKey(stepId);
+    const isCurrentStep = currentStep()?.id === stepId;
+    const elapsed = isCurrentStep ? getElapsedSeconds(item) : 0;
     const next = Math.max(0, Math.min(90, getDurationMinutes(item) + delta));
     state.timers[key] = next;
-    if (currentStep()?.id === stepId) state.remaining = Math.min(state.remaining, next * 60);
+    if (isCurrentStep) state.remaining = Math.max(0, (next * 60) - elapsed);
     skipZeroDurationSteps();
     renderAll();
   }
