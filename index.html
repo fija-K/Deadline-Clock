@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Problem Clock</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <svg class="svg-sprite" aria-hidden="true">
+      <symbol id="icon-clock" viewBox="0 0 24 24"><path d="M12 2.75a9.25 9.25 0 1 0 9.25 9.25"/><path d="M12 7v5l3 2"/><path d="M18.8 3.8 21 6"/><path d="M15.8 2.8 19 6"/></symbol>
+      <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+      <symbol id="icon-brain" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M12 7.5c-1.5-2.3-5.6-1.4-5.6 2.1 0 .7.2 1.3.5 1.8-1.6.6-2.3 2.1-2 3.5.4 1.7 2 2.8 3.8 2.4.8 1.3 2 1.9 3.3 1.7"/><path d="M12 7.5c1.5-2.3 5.6-1.4 5.6 2.1 0 .7-.2 1.3-.5 1.8 1.6.6 2.3 2.1 2 3.5-.4 1.7-2 2.8-3.8 2.4-.8 1.3-2 1.9-3.3 1.7"/><path d="M8.4 11.4h2.1M13.5 11.4h2.1M8.8 15h1.8M13.4 15h1.8"/></symbol>
+      <symbol id="icon-bulb" viewBox="0 0 24 24"><path d="M8.5 18h7"/><path d="M9 21h6"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.8.6 1 1.3 1 2.1h5c0-.8.2-1.5 1-2.1A6 6 0 0 0 12 3Z"/></symbol>
+      <symbol id="icon-question" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.8 9a2.4 2.4 0 0 1 4.5 1.2c0 2-2.3 2.1-2.3 4"/><path d="M12 18h.01"/></symbol>
+      <symbol id="icon-zap" viewBox="0 0 24 24"><path d="m13 2-9 12h8l-1 8 9-12h-8l1-8Z"/></symbol>
+      <symbol id="icon-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v17H7a3 3 0 0 0-3 3V5.5Z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H20"/></symbol>
+      <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+      <symbol id="icon-note" viewBox="0 0 24 24"><path d="M5 4h12l2 2v14H5V4Z"/><path d="M9 9h6M9 13h4"/><path d="m14 20 5-5"/></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="icon-sliders" viewBox="0 0 24 24"><path d="M4 7h5M15 7h5M4 17h8M18 17h2"/><circle cx="12" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></symbol>
+      <symbol id="icon-reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/></symbol>
+      <symbol id="icon-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7.5 7.5 0 0 0-1.7-1L14.5 3h-5l-.3 3a7.5 7.5 0 0 0-1.7 1L5.1 6l-2 3.5 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7.5 7.5 0 0 0 1.7 1l.3 3h5l.3-3a7.5 7.5 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z"/></symbol>
+      <symbol id="icon-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18h1.2a2 2 0 0 0 1.2-3.6 1.5 1.5 0 0 1 .9-2.7H17a4 4 0 0 0 0-8 9 9 0 0 0-5-3.7Z"/><circle cx="7.5" cy="11" r=".8"/><circle cx="10" cy="7.8" r=".8"/><circle cx="14" cy="8" r=".8"/></symbol>
+      <symbol id="icon-pip" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="6" height="4" rx="1"/></symbol>
+      <symbol id="icon-break" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M12 7v5l3 2"/><path d="M19 4v4h-4"/></symbol>
+      <symbol id="icon-fullscreen" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/><path d="M3 3l6 6M21 3l-6 6M3 21l6-6M21 21l-6-6"/></symbol>
+      <symbol id="icon-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24"><path d="m8 5 11 7-11 7V5Z"/></symbol>
+      <symbol id="icon-skip" viewBox="0 0 24 24"><path d="m6 5 9 7-9 7V5Z"/><path d="M18 5v14"/></symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+      <symbol id="icon-chart" viewBox="0 0 24 24"><path d="M5 20V8M10 20v-6M15 20V4M20 20v-9"/><path d="M3 20h18"/></symbol>
+      <symbol id="icon-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/><path d="m17 7 3-3"/></symbol>
+      <symbol id="icon-flame" viewBox="0 0 24 24"><path d="M12 22a7 7 0 0 0 7-7c0-4.5-3.2-6.4-4.5-10-2 1.3-3 3.2-3 5.5C9.5 9.2 8.3 7.7 8 6c-1.8 2-3 4.4-3 8a7 7 0 0 0 7 8Z"/></symbol>
+      <symbol id="icon-trend" viewBox="0 0 24 24"><path d="m4 17 6-6 4 4 6-8"/><path d="M15 7h5v5"/></symbol>
+    </svg>
+
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-row">
+          <div class="logo-mark"><svg><use href="#icon-clock"></use></svg></div>
+          <div>
+            <h1>DSA FOCUS</h1>
+            <p>One problem. One process.</p>
+          </div>
+        </div>
+
+        <section class="side-section">
+          <h2>Difficulty</h2>
+          <div class="difficulty-grid" id="difficultyGrid"></div>
+        </section>
+
+        <section class="side-section estimated">
+          <h2>Estimated Time</h2>
+          <div class="estimate-line">
+            <span id="estimatedTime">~ 21 min</span>
+            <strong id="solvedBadge"></strong>
+          </div>
+        </section>
+
+        <nav class="roadmap" id="roadmap" aria-label="Workflow"></nav>
+
+        <button class="add-step" id="openCustomStep">
+          <svg><use href="#icon-plus"></use></svg>
+          Add Custom Step
+        </button>
+
+        <div class="sidebar-actions">
+          <button class="action primary" id="workspaceBtn"><svg><use href="#icon-sliders"></use></svg>Workspace</button>
+          <button class="action" id="resetBtn"><svg><use href="#icon-reset"></use></svg>Reset</button>
+        </div>
+      </aside>
+
+      <section class="timer-panel">
+        <div class="topbar">
+          <span>Current Step</span>
+          <div class="top-actions">
+            <button class="top-btn" id="pinBtn" title="Mini clock"><svg><use href="#icon-pip"></use></svg><span>Mini</span></button>
+            <button class="top-btn icon-only" id="breakBtn" title="Break settings"><svg><use href="#icon-break"></use></svg></button>
+            <button class="top-btn icon-only" id="fullscreenBtn" title="Fullscreen"><svg><use href="#icon-fullscreen"></use></svg></button>
+          </div>
+        </div>
+
+        <div class="timer-content" id="timerContent">
+          <svg class="step-hero-icon" id="stepHeroIcon"><use href="#icon-brain"></use></svg>
+          <h2 id="stepTitle">2. Solve (No Hints)</h2>
+          <p id="stepPurpose">Solve it on your own.</p>
+          <p id="stepSubtitle">No hints, no searching.</p>
+          <div class="hint-hearts hidden" id="hintHearts" aria-label="Hints used">
+            <button type="button" data-hint="1" title="Use hint 1"></button>
+            <button type="button" data-hint="2" title="Use hint 2"></button>
+            <button type="button" data-hint="3" title="Use hint 3"></button>
+          </div>
+
+          <div class="time-readout" id="timeReadout">08:00</div>
+          <div class="duration-line">/ <span id="stepDuration">08:00</span></div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+
+          <div class="timer-buttons">
+            <button class="control primary" id="toggleRun"><svg><use href="#icon-pause"></use></svg><span>Pause</span></button>
+            <button class="control" id="skipStep"><svg><use href="#icon-skip"></use></svg><span>Skip Step</span></button>
+            <button class="control" id="resetStep"><svg><use href="#icon-reset"></use></svg><span>Reset Step</span></button>
+          </div>
+
+          <div class="tip-box">
+            <svg><use href="#icon-bulb"></use></svg>
+            <span><strong>Tip:</strong> <span id="tipText">Write your approach before coding.</span></span>
+          </div>
+        </div>
+
+        <div class="decision-screen hidden" id="decisionScreen">
+          <svg class="step-hero-icon"><use href="#icon-question"></use></svg>
+          <h2>Did you solve it?</h2>
+          <p>Your next steps adapt to the answer.</p>
+          <div class="decision-actions">
+            <button class="decision yes" data-decision="yes">Yes</button>
+            <button class="decision no" data-decision="no">No</button>
+          </div>
+        </div>
+
+        <footer class="stats-bar">
+          <div class="stat"><svg><use href="#icon-clock"></use></svg><div><span>Today</span><strong id="todayTimeStat">0h 0m</strong><small>Focus Time</small></div></div>
+          <div class="stat"><svg><use href="#icon-trend"></use></svg><div><span>This Week</span><strong id="weekTimeStat">0h 0m</strong><small>Focus Time</small></div></div>
+          <div class="stat"><svg class="orange"><use href="#icon-flame"></use></svg><div><span>Streak</span><strong id="streakStat">0</strong><small>Completed Flows</small></div></div>
+        </footer>
+      </section>
+    </main>
+
+    <aside class="mini-clock" id="miniClock" aria-hidden="true">
+      <span id="miniClockStep">Read & Restate</span>
+      <strong id="miniClockTime">02:00</strong>
+      <div class="mini-progress-row">
+        <div class="mini-progress-track"><div id="miniProgressFill"></div></div>
+        <small id="miniStepDuration">02:00</small>
+      </div>
+      <div class="mini-hearts hidden" id="miniHearts">
+        <button type="button" data-hint="1" title="Use hint 1"></button>
+        <button type="button" data-hint="2" title="Use hint 2"></button>
+        <button type="button" data-hint="3" title="Use hint 3"></button>
+      </div>
+      <div class="mini-actions">
+        <button id="miniToggleRun" title="Start or pause"><svg><use href="#icon-play"></use></svg></button>
+        <button id="miniSkipStep" title="Skip step"><svg><use href="#icon-skip"></use></svg></button>
+        <button id="miniPipBack" title="Back to page"><svg><use href="#icon-pip"></use></svg></button>
+      </div>
+    </aside>
+
+    <aside class="workspace-drawer" id="workspaceDrawer" aria-hidden="true">
+      <div class="drawer-head">
+        <div>
+          <span>Workspace</span>
+          <h2 id="drawerTitle">Themes</h2>
+        </div>
+        <button class="icon-btn" id="closeDrawer" title="Close">×</button>
+      </div>
+      <div class="drawer-tabs">
+        <button data-tab="themes" class="active">Themes</button>
+        <button data-tab="timers">Timers</button>
+        <button data-tab="custom">Custom Steps</button>
+        <button data-tab="breaks">Breaks</button>
+        <button data-tab="reset">Reset Defaults</button>
+      </div>
+
+      <section class="drawer-panel active" data-panel="themes">
+        <div class="theme-list" id="themeList"></div>
+      </section>
+
+      <section class="drawer-panel" data-panel="timers">
+        <div class="settings-list" id="timerSettings"></div>
+      </section>
+
+      <section class="drawer-panel" data-panel="custom">
+        <form class="custom-form" id="customForm">
+          <label>Name<input id="customName" maxlength="28" required placeholder="Stretch"></label>
+          <label>Duration<input id="customDuration" type="number" min="1" max="60" value="3" required></label>
+          <label>Position<select id="customPosition"></select></label>
+          <button type="submit" class="wide-primary">Add Step</button>
+        </form>
+        <div class="settings-list" id="customList"></div>
+      </section>
+
+      <section class="drawer-panel" data-panel="breaks">
+        <label class="select-row">Focus threshold<select id="breakThreshold"></select></label>
+        <label class="select-row">Break duration<select id="breakDuration"></select></label>
+        <button class="wide-primary" id="applyBreakSettings" type="button">Apply Change</button>
+      </section>
+
+      <section class="drawer-panel" data-panel="reset">
+        <p class="drawer-copy">Restore themes, timers, custom steps, current session, and settings to their defaults.</p>
+        <button class="danger-btn" id="factoryReset">Reset Everything</button>
+      </section>
+    </aside>
+
+    <div class="backdrop" id="backdrop"></div>
+
+    <section class="break-modal hidden" id="breakModal">
+      <div class="break-card">
+        <div class="break-icon">☕</div>
+        <h2>Great work.</h2>
+        <p>You've focused for</p>
+        <strong id="breakFocused">30 minutes.</strong>
+        <p>Take a short break.</p>
+        <div class="break-count" id="breakCount"></div>
+        <div class="break-actions">
+          <button class="control primary" id="startBreak">Start Break</button>
+          <button class="control" id="skipBreak">Skip</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="done-toast" id="doneToast" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="doneTitle">
+      <span id="doneTitle">Yeeh! Question complete.</span>
+      <p>Take the win, then load the next one.</p>
+      <button type="button" id="nextQuestionBtn">Next Question</button>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
