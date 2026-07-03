@@ -1,11 +1,9 @@
-window.PROBLEM_CLOCK_FIREBASE_CONFIG = null;
-
-// To enable account sync, replace null above with your Firebase web app config:
-// window.PROBLEM_CLOCK_FIREBASE_CONFIG = {
-//   apiKey: "your-api-key",
-//   authDomain: "your-project.firebaseapp.com",
-//   projectId: "your-project-id",
-//   storageBucket: "your-project.appspot.com",
-//   messagingSenderId: "your-sender-id",
-//   appId: "your-app-id"
-// };
+window.PROBLEM_CLOCK_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyD5DEyW66-EpJOVrZ54_vzdBOuOgKA",
+  authDomain: "deadline-clock.firebaseapp.com",
+  projectId: "deadline-clock",
+  storageBucket: "deadline-clock.firebasestorage.app",
+  messagingSenderId: "272976943126",
+  appId: "1:272976943126:web:41a98deccc9e74c3fcbd37",
+  measurementId: "G-T57VV5W6ZE"
+};
