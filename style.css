@@ -735,7 +735,7 @@ h1, h2, p {
 
 .stats-bar {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr) auto;
   align-items: center;
   gap: 0;
   border-top: 1px solid var(--line);
@@ -753,6 +753,49 @@ h1, h2, p {
 
 .stat:last-child {
   border-right: 0;
+}
+
+.linkedin-link {
+  align-self: center;
+  justify-self: end;
+  min-width: 136px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-left: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255,255,255,.03);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+}
+
+.linkedin-link:hover {
+  transform: translateY(-1px);
+  border-color: #0a66c2;
+  background: rgba(10, 102, 194, .18);
+  box-shadow: 0 0 20px rgba(10, 102, 194, .22);
+}
+
+.linkedin-link span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: #0a66c2;
+  color: #fff;
+  font-weight: 900;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.linkedin-link strong {
+  font-size: 15px;
+  font-weight: 800;
 }
 
 .stat svg {
@@ -1456,6 +1499,11 @@ input, select {
     grid-template-columns: 1fr;
   }
 
+  .linkedin-link {
+    justify-self: stretch;
+    margin: 10px 14px 0;
+  }
+
   .stat {
     border-right: 0;
     border-bottom: 1px solid var(--line);
@@ -1553,6 +1601,11 @@ input, select {
 
   .stats-bar {
     grid-template-columns: 1fr;
+  }
+
+  .linkedin-link {
+    justify-self: stretch;
+    margin: 10px 14px 0;
   }
 
   .stat {

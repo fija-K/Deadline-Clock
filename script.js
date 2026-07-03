@@ -541,7 +541,7 @@
     const durationSeconds = getDurationSeconds(item);
     markCompleted(item.id);
     if (item.id === "notes") {
-      if (countFocusTime) {
+      if (!state.sessionComplete) {
         state.stats.streak += 1;
       }
       state.sessionComplete = true;
