@@ -200,11 +200,29 @@ svg {
 }
 
 .brand-row {
+  position: relative;
   display: grid;
   grid-template-columns: 46px 1fr;
   gap: 12px;
   align-items: center;
   padding: 12px 18px 7px;
+}
+
+.question-badge {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  max-width: 150px;
+  padding: 5px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: rgba(255,255,255,.04);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .logo-mark {
@@ -302,6 +320,43 @@ h1, h2, p {
 .difficulty-btn.active.easy { background: color-mix(in srgb, var(--success) 42%, transparent); color: #7dffa9; border-color: transparent; }
 .difficulty-btn.active.medium { background: color-mix(in srgb, var(--warning) 20%, transparent); }
 .difficulty-btn.active.hard { background: color-mix(in srgb, var(--danger) 18%, transparent); }
+
+.custom-quick {
+  padding-top: 5px;
+}
+
+.side-custom-form {
+  display: grid;
+  gap: 8px;
+}
+
+.side-custom-form input,
+.side-custom-form select {
+  height: 34px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.side-custom-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 38px;
+  gap: 8px;
+}
+
+.side-custom-row button {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.side-custom-row button svg {
+  width: 19px;
+  height: 19px;
+}
 
 .estimated {
   padding-top: 7px;
@@ -994,6 +1049,19 @@ input, select {
   outline: none;
 }
 
+textarea {
+  width: 100%;
+  min-height: 86px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 12px;
+  outline: none;
+  font: inherit;
+}
+
 .select-row {
   margin-bottom: 12px;
 }
@@ -1100,6 +1168,114 @@ input, select {
   padding: 20px;
   background: rgba(0,0,0,.74);
   backdrop-filter: blur(16px);
+}
+
+.history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(0,0,0,.68);
+  backdrop-filter: blur(14px);
+}
+
+.history-card {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 40px));
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--surface-strong), var(--surface));
+  box-shadow: var(--shadow);
+}
+
+.history-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-head span {
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.history-head h2 {
+  margin-top: 5px;
+  font-size: 28px;
+}
+
+.history-signin,
+.history-form,
+.history-list,
+.history-week {
+  display: grid;
+  gap: 12px;
+}
+
+.history-signin p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.history-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.history-list-head button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+}
+
+.history-week h3 {
+  margin: 0;
+  color: var(--primary);
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.history-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+}
+
+.history-item strong,
+.history-item small {
+  display: block;
+}
+
+.history-item small {
+  margin-top: 5px;
+  color: var(--muted);
+}
+
+.history-item > span {
+  color: var(--primary);
+  font-weight: 800;
 }
 
 .break-card {

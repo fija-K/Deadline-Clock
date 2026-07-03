@@ -82,7 +82,9 @@
     breakPending: false,
     breakActive: false,
     breakRemaining: 0,
-    nickname: ""
+    nickname: "",
+    currentQuestion: null,
+    questionHistory: []
   };
 
   let state = loadState();
@@ -132,6 +134,10 @@
     customDuration: $("#customDuration"),
     customPosition: $("#customPosition"),
     customList: $("#customList"),
+    sidebarCustomForm: $("#sidebarCustomForm"),
+    sidebarCustomName: $("#sidebarCustomName"),
+    sidebarCustomDuration: $("#sidebarCustomDuration"),
+    sidebarCustomPosition: $("#sidebarCustomPosition"),
     breakThreshold: $("#breakThreshold"),
     breakDuration: $("#breakDuration"),
     breakModal: $("#breakModal"),
@@ -154,11 +160,22 @@
     doneToast: $("#doneToast"),
     nextQuestionBtn: $("#nextQuestionBtn"),
     welcomeName: $("#welcomeName"),
+    questionBadge: $("#questionBadge"),
     nicknameInput: $("#nicknameInput"),
     authStatus: $("#authStatus"),
     syncStatus: $("#syncStatus"),
     authGoogleSignIn: $("#authGoogleSignIn"),
-    authSignOut: $("#authSignOut")
+    authSignOut: $("#authSignOut"),
+    historyBtn: $("#historyBtn"),
+    historyModal: $("#historyModal"),
+    closeHistory: $("#closeHistory"),
+    historySignin: $("#historySignin"),
+    historyGoogleSignIn: $("#historyGoogleSignIn"),
+    historyForm: $("#historyForm"),
+    questionNumber: $("#questionNumber"),
+    questionTitle: $("#questionTitle"),
+    setupQuestionBtn: $("#setupQuestionBtn"),
+    historyList: $("#historyList")
   };
 
   function step(id, name, minutes, purpose, subtitle, detailOrIcon, iconOrTip, maybeTip) {
@@ -200,6 +217,10 @@
     if (!Number.isFinite(next.hintsUsed)) next.hintsUsed = 0;
     next.hintsUsed = Math.max(0, Math.min(3, next.hintsUsed));
     next.nickname = normalizeNickname(next.nickname || "");
+    next.currentQuestion = normalizeQuestion(next.currentQuestion);
+    next.questionHistory = Array.isArray(next.questionHistory)
+      ? next.questionHistory.map(normalizeHistoryEntry).filter(Boolean)
+      : [];
     const hadLegacyStats = next.stats && (
       Object.prototype.hasOwnProperty.call(next.stats, "today") ||
       Object.prototype.hasOwnProperty.call(next.stats, "weeklyGoal")
@@ -329,6 +350,7 @@
     renderStats();
     renderTopButtons();
     renderAccount();
+    renderHistory();
     save();
   }
 
@@ -419,6 +441,7 @@
 
     const basePositions = baseWorkflows[state.difficulty].filter((item) => item.id !== "decision");
     els.customPosition.innerHTML = basePositions.map((item) => `<option value="${item.id}">After ${escapeHtml(item.name)}</option>`).join("");
+    els.sidebarCustomPosition.innerHTML = basePositions.map((item) => `<option value="${item.id}">After ${escapeHtml(item.name)}</option>`).join("");
     els.customList.innerHTML = state.customSteps.length
       ? state.customSteps.map((item, index) => `<div class="custom-item">
           <div><strong>${escapeHtml(item.name)}</strong><br><small>${item.minutes} min after ${escapeHtml(labelFor(item.afterId))}</small></div>
@@ -479,6 +502,8 @@
     $("#workspaceBtn").addEventListener("click", () => openDrawer("themes"));
     $("#openCustomStep").addEventListener("click", () => openDrawer("custom"));
     $("#breakBtn").addEventListener("click", () => openDrawer("breaks"));
+    els.historyBtn.addEventListener("click", openHistory);
+    els.closeHistory.addEventListener("click", closeHistory);
     $("#closeDrawer").addEventListener("click", closeDrawer);
     els.backdrop.addEventListener("click", closeDrawer);
     $("#resetBtn").addEventListener("click", resetSession);
@@ -492,6 +517,7 @@
     $("#skipBreak").addEventListener("click", finishBreak);
     els.applyBreakSettings.addEventListener("click", applyBreakSettings);
     els.customForm.addEventListener("submit", addCustomStep);
+    els.sidebarCustomForm.addEventListener("submit", addCustomStep);
     els.miniToggleRun.addEventListener("click", toggleRun);
     els.miniSkipStep.addEventListener("click", () => completeCurrentStep(false));
     els.miniPipBack.addEventListener("click", closeMiniMode);
@@ -500,6 +526,9 @@
     els.nextQuestionBtn.addEventListener("click", nextQuestion);
     els.nicknameInput.addEventListener("input", updateNickname);
     els.authGoogleSignIn.addEventListener("click", signInWithGoogle);
+    els.historyGoogleSignIn.addEventListener("click", signInWithGoogle);
+    els.historyForm.addEventListener("submit", saveQuestionSetup);
+    els.setupQuestionBtn.addEventListener("click", () => showQuestionSetup(true));
     els.authSignOut.addEventListener("click", signOutOfCloud);
   }
 
@@ -601,6 +630,7 @@
       if (!state.sessionComplete) {
         state.stats.streak += 1;
       }
+      recordCurrentQuestion();
       state.sessionComplete = true;
       state.running = false;
       state.remaining = 0;
@@ -664,6 +694,7 @@
       state.remaining = 0;
       if (item.id === "notes") {
         if (!state.sessionComplete) state.stats.streak += 1;
+        recordCurrentQuestion();
         state.sessionComplete = true;
         state.running = false;
         stopTimer();
@@ -756,18 +787,22 @@
 
   function addCustomStep(event) {
     event.preventDefault();
-    const name = els.customName.value.trim();
-    const minutes = Number(els.customDuration.value);
+    const isSidebarForm = event.currentTarget === els.sidebarCustomForm;
+    const nameInput = isSidebarForm ? els.sidebarCustomName : els.customName;
+    const durationInput = isSidebarForm ? els.sidebarCustomDuration : els.customDuration;
+    const positionInput = isSidebarForm ? els.sidebarCustomPosition : els.customPosition;
+    const name = nameInput.value.trim();
+    const minutes = Number(durationInput.value);
     if (!name || !Number.isFinite(minutes)) return;
     state.customSteps.push({
       id: `custom-${Date.now()}`,
       name,
       minutes: Math.max(0, Math.min(60, minutes)),
-      afterId: els.customPosition.value,
+      afterId: positionInput.value,
       order: Date.now()
     });
-    els.customForm.reset();
-    els.customDuration.value = 3;
+    event.currentTarget.reset();
+    durationInput.value = 3;
     renderAll();
   }
 
@@ -913,7 +948,8 @@
           .pip-actions.hidden,
           .pip-progress-row.hidden,
           .pip-decision.hidden,
-          .pip-complete.hidden {
+          .pip-complete.hidden,
+          .pip-setup.hidden {
             display: none;
           }
           .pip-decision {
@@ -942,6 +978,26 @@
             font-size: 15px;
           }
           .pip-complete button {
+            background: linear-gradient(135deg, var(--pip-primary), var(--pip-primary-2));
+            border-color: transparent;
+            font-weight: 800;
+          }
+          .pip-setup {
+            display: grid;
+            gap: 7px;
+          }
+          .pip-setup input {
+            width: 100%;
+            height: 29px;
+            border: 1px solid #27395d;
+            border-radius: 8px;
+            background: rgba(0,0,0,.22);
+            color: #f6f7fb;
+            padding: 0 9px;
+            font: inherit;
+            outline: none;
+          }
+          .pip-setup button {
             background: linear-gradient(135deg, var(--pip-primary), var(--pip-primary-2));
             border-color: transparent;
             font-weight: 800;
@@ -987,6 +1043,11 @@
             <strong>Question complete.</strong>
             <button id="pipNextQuestion">Next Question</button>
           </div>
+          <form class="pip-setup hidden" id="pipSetup">
+            <input id="pipQuestionNumber" maxlength="12" placeholder="Question no.">
+            <input id="pipQuestionTitle" maxlength="120" placeholder="Question description" required>
+            <button type="submit">Start Question</button>
+          </form>
           <div class="pip-actions" id="pipActions">
             <button id="pipToggle">Start</button>
             <button id="pipSkip">Skip</button>
@@ -1010,6 +1071,14 @@
         updatePiP();
       });
       pipWindow.document.querySelector("#pipNextQuestion").addEventListener("click", nextQuestion);
+      pipWindow.document.querySelector("#pipSetup").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const number = pipWindow.document.querySelector("#pipQuestionNumber").value;
+        const title = pipWindow.document.querySelector("#pipQuestionTitle").value;
+        setCurrentQuestion(number, title);
+        renderAll();
+        if (state.running) startTimer();
+      });
       pipWindow.addEventListener("pagehide", () => {
         pipWindow = null;
         if (state.pinned) {
@@ -1029,21 +1098,23 @@
     const item = currentStep();
     const isHint = item?.id === "hints";
     const isDecision = item?.id === "decision";
+    const needsQuestionSetup = Boolean(cloud.user && !state.currentQuestion && !state.sessionComplete);
     els.miniHearts.classList.toggle("hidden", !isHint);
     if (!pipWindow || pipWindow.closed || !item) return;
     applyPiPTheme();
-    pipWindow.document.querySelector("#pipStep").textContent = item.name;
-    pipWindow.document.querySelector("#pipTime").textContent = state.sessionComplete ? "Done" : isDecision ? "Yes / No" : formatTime(getElapsedSeconds(item));
+    pipWindow.document.querySelector("#pipStep").textContent = needsQuestionSetup ? "Set up question" : item.name;
+    pipWindow.document.querySelector("#pipTime").textContent = needsQuestionSetup ? "Next" : state.sessionComplete ? "Done" : isDecision ? "Yes / No" : formatTime(getElapsedSeconds(item));
     const duration = isDecision ? 0 : getDurationSeconds(item);
     const progress = duration ? ((duration - state.remaining) / duration) * 100 : 0;
     pipWindow.document.querySelector("#pipProgress").style.width = `${Math.max(0, Math.min(100, progress))}%`;
     pipWindow.document.querySelector("#pipTotal").textContent = duration ? formatTime(duration) : "--:--";
     pipWindow.document.querySelector("#pipToggle").textContent = state.running ? "Pause" : "Start";
     pipWindow.document.querySelector("#pipHearts").classList.toggle("show", isHint);
-    pipWindow.document.querySelector("#pipProgressRow").classList.toggle("hidden", isDecision || state.sessionComplete);
-    pipWindow.document.querySelector("#pipActions").classList.toggle("hidden", isDecision || state.sessionComplete);
-    pipWindow.document.querySelector("#pipDecision").classList.toggle("hidden", !isDecision || state.sessionComplete);
+    pipWindow.document.querySelector("#pipProgressRow").classList.toggle("hidden", needsQuestionSetup || isDecision || state.sessionComplete);
+    pipWindow.document.querySelector("#pipActions").classList.toggle("hidden", needsQuestionSetup || isDecision || state.sessionComplete);
+    pipWindow.document.querySelector("#pipDecision").classList.toggle("hidden", needsQuestionSetup || !isDecision || state.sessionComplete);
     pipWindow.document.querySelector("#pipComplete").classList.toggle("hidden", !state.sessionComplete);
+    pipWindow.document.querySelector("#pipSetup").classList.toggle("hidden", !needsQuestionSetup);
     pipWindow.document.querySelectorAll("#pipHearts button").forEach((button) => {
       button.classList.toggle("used", Number(button.dataset.hint) <= state.hintsUsed);
     });
@@ -1081,6 +1152,7 @@
 
   function addFocusSecond() {
     state.focusTime += 1 / 60;
+    if (state.currentQuestion && !state.currentQuestion.completed) state.currentQuestion.elapsedSeconds += 1;
     state.stats.todayFocusSeconds += 1;
     state.stats.weekFocusSeconds += 1;
     state.stats.todayFocus = Math.floor(state.stats.todayFocusSeconds / 60);
@@ -1096,9 +1168,17 @@
     state.currentIndex = 0;
     state.remaining = getDurationSeconds(getWorkflow()[0]);
     state.running = false;
+    state.currentQuestion = null;
     els.doneToast.classList.remove("show");
     els.doneToast.setAttribute("aria-hidden", "true");
     renderAll();
+    if (cloud.user) {
+      if (pipWindow && !pipWindow.closed) {
+        updatePiP();
+      } else {
+        showQuestionSetup(true);
+      }
+    }
   }
 
   async function initCloudSync() {
@@ -1124,6 +1204,7 @@
         cloud.user = user;
         if (user) {
           await loadCloudState();
+          if (!state.currentQuestion) showQuestionSetup(true);
         } else {
           renderAuthUI();
         }
@@ -1157,6 +1238,74 @@
     els.nicknameInput.value = nickname;
     renderAccount();
     save();
+  }
+
+  function openHistory() {
+    els.historyModal.classList.remove("hidden");
+    els.historyModal.setAttribute("aria-hidden", "false");
+    renderHistory();
+    if (cloud.user && !state.currentQuestion) showQuestionSetup(false);
+  }
+
+  function closeHistory() {
+    els.historyModal.classList.add("hidden");
+    els.historyModal.setAttribute("aria-hidden", "true");
+  }
+
+  function showQuestionSetup(forceOpen) {
+    if (!cloud.user) {
+      if (forceOpen) openHistory();
+      return;
+    }
+    if (forceOpen) {
+      els.historyModal.classList.remove("hidden");
+      els.historyModal.setAttribute("aria-hidden", "false");
+    }
+    els.questionNumber.value = state.currentQuestion?.number || "";
+    els.questionTitle.value = state.currentQuestion?.title || "";
+    window.setTimeout(() => els.questionTitle.focus(), 0);
+    renderHistory();
+  }
+
+  function saveQuestionSetup(event) {
+    event.preventDefault();
+    if (!cloud.user) {
+      renderAuthUI("Please sign in to save question history.");
+      return;
+    }
+    const number = cleanQuestionNumber(els.questionNumber.value);
+    const title = cleanQuestionTitle(els.questionTitle.value) || "Untitled question";
+    setCurrentQuestion(number, title);
+    closeHistory();
+    renderAll();
+    if (state.running) startTimer();
+  }
+
+  function setCurrentQuestion(number, title) {
+    state.currentQuestion = {
+      id: state.currentQuestion?.id || `question-${Date.now()}`,
+      number: cleanQuestionNumber(number),
+      title: cleanQuestionTitle(title) || "Untitled question",
+      date: state.currentQuestion?.date || dayKey(),
+      startedAt: state.currentQuestion?.startedAt || new Date().toISOString(),
+      elapsedSeconds: state.currentQuestion?.elapsedSeconds || 0,
+      completed: false
+    };
+    state.running = !state.sessionComplete && currentStep()?.id !== "decision";
+  }
+
+  function recordCurrentQuestion() {
+    if (!cloud.user || !state.currentQuestion || state.currentQuestion.completed) return;
+    const entry = normalizeHistoryEntry({
+      ...state.currentQuestion,
+      completed: true,
+      completedAt: new Date().toISOString(),
+      date: dayKey(),
+      week: weekKey()
+    });
+    if (!entry) return;
+    state.questionHistory = [entry, ...state.questionHistory.filter((item) => item.id !== entry.id)].slice(0, 120);
+    state.currentQuestion = null;
   }
 
   async function signOutOfCloud() {
@@ -1225,6 +1374,7 @@
     els.authGoogleSignIn.classList.toggle("hidden", signedIn);
     els.authSignOut.classList.toggle("hidden", !signedIn);
     renderAccount();
+    renderHistory();
   }
 
   function renderAccount() {
@@ -1237,6 +1387,40 @@
     els.welcomeName.classList.toggle("hidden", !showWelcome);
   }
 
+  function renderHistory() {
+    if (!els.historySignin || !els.historyForm || !els.historyList || !els.questionBadge) return;
+    const signedIn = Boolean(cloud.user);
+    els.historySignin.classList.toggle("hidden", signedIn);
+    els.historyForm.classList.toggle("hidden", !signedIn);
+    els.setupQuestionBtn.disabled = !signedIn;
+    const questionLabel = signedIn ? getQuestionLabel(state.currentQuestion) : "";
+    els.questionBadge.textContent = questionLabel;
+    els.questionBadge.classList.toggle("hidden", !questionLabel);
+    if (!signedIn) {
+      els.historyList.innerHTML = `<p class="drawer-copy">Sign in to keep a weekly history of solved questions.</p>`;
+      return;
+    }
+    if (!state.questionHistory.length) {
+      els.historyList.innerHTML = `<p class="drawer-copy">No question history yet.</p>`;
+      return;
+    }
+    const groups = groupHistoryByWeek(state.questionHistory);
+    els.historyList.innerHTML = groups.map(([week, entries]) => `
+      <section class="history-week">
+        <h3>${escapeHtml(week)}</h3>
+        ${entries.map((entry) => `
+          <div class="history-item">
+            <div>
+              <strong>${escapeHtml(getQuestionLabel(entry) || entry.title)}</strong>
+              <small>${escapeHtml(entry.date)} - Took ${escapeHtml(humanDuration(entry.elapsedSeconds))}</small>
+            </div>
+            <span>${escapeHtml(entry.number ? `#${entry.number}` : "Question")}</span>
+          </div>
+        `).join("")}
+      </section>
+    `).join("");
+  }
+
   function normalizeNickname(value) {
     return String(value || "")
       .trim()
@@ -1244,6 +1428,66 @@
       .replace(/\s+/g, "-")
       .replace(/[^a-zA-Z0-9_-]/g, "")
       .slice(0, 18);
+  }
+
+  function getQuestionLabel(question) {
+    if (!question) return "";
+    const number = question.number ? `#${question.number}` : "";
+    return [number, question.title].filter(Boolean).join(" ");
+  }
+
+  function groupHistoryByWeek(history) {
+    const map = new Map();
+    history.forEach((entry) => {
+      const key = entry.week || entry.date || "History";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(entry);
+    });
+    return [...map.entries()];
+  }
+
+  function normalizeQuestion(question) {
+    if (!question || typeof question !== "object") return null;
+    const title = cleanQuestionTitle(question.title || "");
+    if (!title && question.completed) return null;
+    return {
+      id: String(question.id || `question-${Date.now()}`),
+      number: cleanQuestionNumber(question.number || ""),
+      title,
+      date: question.date || dayKey(),
+      startedAt: question.startedAt || new Date().toISOString(),
+      elapsedSeconds: Math.max(0, Math.floor(Number(question.elapsedSeconds) || 0)),
+      completed: Boolean(question.completed)
+    };
+  }
+
+  function normalizeHistoryEntry(entry) {
+    const question = normalizeQuestion(entry);
+    if (!question || !question.title) return null;
+    return {
+      ...question,
+      completed: true,
+      completedAt: entry.completedAt || new Date().toISOString(),
+      week: entry.week || weekKey()
+    };
+  }
+
+  function cleanQuestionNumber(value) {
+    return String(value || "").trim().replace(/^#+/, "").slice(0, 12);
+  }
+
+  function cleanQuestionTitle(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  }
+
+  function humanDuration(seconds) {
+    const safe = Math.max(0, Math.floor(seconds || 0));
+    const hours = Math.floor(safe / 3600);
+    const mins = Math.floor((safe % 3600) / 60);
+    const secs = safe % 60;
+    if (hours) return `${hours}h ${mins}m ${secs}s`;
+    if (mins) return `${mins}m ${secs}s`;
+    return `${secs}s`;
   }
 
   function cleanFirebaseMessage(error) {

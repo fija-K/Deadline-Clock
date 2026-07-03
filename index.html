@@ -41,14 +41,27 @@
           <div class="logo-mark"><svg><use href="#icon-clock"></use></svg></div>
           <div>
             <span class="welcome-name hidden" id="welcomeName"></span>
-            <h1>DSA FOCUS</h1>
+            <h1>The DeadlineClock</h1>
             <p>One problem. One process.</p>
           </div>
+          <span class="question-badge hidden" id="questionBadge"></span>
         </div>
 
         <section class="side-section">
           <h2>Difficulty</h2>
           <div class="difficulty-grid" id="difficultyGrid"></div>
+        </section>
+
+        <section class="side-section custom-quick">
+          <h2>Customized Steps</h2>
+          <form class="side-custom-form" id="sidebarCustomForm">
+            <input id="sidebarCustomName" maxlength="28" required placeholder="Step name">
+            <div class="side-custom-row">
+              <input id="sidebarCustomDuration" type="number" min="0" max="60" value="3" required aria-label="Duration minutes">
+              <select id="sidebarCustomPosition" aria-label="Position"></select>
+              <button type="submit" title="Add custom step"><svg><use href="#icon-plus"></use></svg></button>
+            </div>
+          </form>
         </section>
 
         <section class="side-section estimated">
@@ -76,6 +89,7 @@
         <div class="topbar">
           <span>Current Step</span>
           <div class="top-actions">
+            <button class="top-btn" id="historyBtn" title="Question history"><svg><use href="#icon-note"></use></svg><span>History</span></button>
             <button class="top-btn" id="pinBtn" title="Mini clock"><svg><use href="#icon-pip"></use></svg><span>Mini</span></button>
             <button class="top-btn icon-only" id="breakBtn" title="Break settings"><svg><use href="#icon-break"></use></svg></button>
             <button class="top-btn icon-only" id="fullscreenBtn" title="Fullscreen"><svg><use href="#icon-fullscreen"></use></svg></button>
@@ -197,7 +211,7 @@
             <span id="authStatus">Local only</span>
             <strong id="syncStatus">Firebase sync is not configured.</strong>
           </div>
-          <label>Enter your nickname<input id="nicknameInput" type="text" maxlength="18" autocomplete="nickname" placeholder="fija"></label>
+          <label>Enter your nickname<input id="nicknameInput" type="text" maxlength="18" autocomplete="nickname" placeholder="nickname"></label>
           <button type="button" class="wide-primary secondary google-sign-in" id="authGoogleSignIn">
             <span>G</span>
             Continue with Google
@@ -234,6 +248,38 @@
       <p>Take the win, then load the next one.</p>
       <button type="button" id="nextQuestionBtn">Next Question</button>
     </div>
+
+    <section class="history-modal hidden" id="historyModal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+      <div class="history-card">
+        <div class="history-head">
+          <div>
+            <span>History</span>
+            <h2 id="historyTitle">Question History</h2>
+          </div>
+          <button class="icon-btn" id="closeHistory" title="Close">x</button>
+        </div>
+
+        <div class="history-signin" id="historySignin">
+          <p>Please sign in to save and view your question history.</p>
+          <button type="button" class="wide-primary secondary google-sign-in" id="historyGoogleSignIn">
+            <span>G</span>
+            Continue with Google
+          </button>
+        </div>
+
+        <form class="history-form" id="historyForm">
+          <label>Question no. optional<input id="questionNumber" type="text" maxlength="12" placeholder="42"></label>
+          <label>Question name / description<textarea id="questionTitle" maxlength="120" placeholder="Two Sum, graph BFS, DP notes..."></textarea></label>
+          <button type="submit" class="wide-primary">Start / Save Question</button>
+        </form>
+
+        <div class="history-list-head">
+          <strong>Saved History</strong>
+          <button type="button" id="setupQuestionBtn">Set Up Current Question</button>
+        </div>
+        <div class="history-list" id="historyList"></div>
+      </div>
+    </section>
 
     <script src="firebase-config.js"></script>
     <script src="script.js"></script>
