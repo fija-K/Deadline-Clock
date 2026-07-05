@@ -183,7 +183,7 @@
       <section class="drawer-panel" data-panel="custom">
         <form class="custom-form" id="customForm">
           <label>Name<input id="customName" maxlength="28" required placeholder="Stretch"></label>
-          <label>Duration<input id="customDuration" type="number" min="0" max="60" value="3" required></label>
+          <label>Duration<input id="customDuration" type="number" min="0" max="90" value="3" required></label>
           <label>Position<select id="customPosition"></select></label>
           <button type="submit" class="wide-primary">Add Step</button>
         </form>
@@ -230,9 +230,7 @@
       <div class="break-card">
         <div class="break-icon">☕</div>
         <h2>Great work.</h2>
-        <p>You've focused for</p>
-        <strong id="breakFocused">30 minutes.</strong>
-        <p>Take a short break.</p>
+        <p id="breakFocused">Take a short break.</p>
         <div class="break-count" id="breakCount"></div>
         <div class="break-actions">
           <button class="control primary" id="startBreak">Start Break</button>

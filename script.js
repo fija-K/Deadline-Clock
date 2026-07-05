@@ -57,7 +57,7 @@
   ];
 
   const thresholds = [20, 25, 30, 35, 40, 45, 60];
-  const breakDurations = [5, 10, 15];
+  const breakDurations = [2, 5, 10, 15, 20, 25, 30];
   const branchAfterDecision = { yes: ["compare", "analyze", "notes"], no: ["learn", "analyze", "notes"] };
   const NO_TIME_MODE = "no-time";
   const noTimeDefaults = ["Read", "Think", "Plan", "Code", "Debug", "Submit"];
@@ -1046,7 +1046,7 @@
     state.breakActive = true;
     state.breakPending = false;
     if (!resumeExisting) state.breakRemaining = state.breakDuration * 60;
-    els.breakFocused.textContent = `${state.focusTime} minutes.`;
+    els.breakFocused.textContent = "Take a short break.";
     els.breakCount.textContent = state.breakRemaining ? formatTime(state.breakRemaining) : "";
     els.breakModal.classList.remove("hidden");
     save();
@@ -1137,7 +1137,7 @@
       state.customFlow.push({
         id,
         name,
-        minutes: Math.max(0, Math.min(60, minutes)),
+        minutes: Math.max(0, Math.min(90, minutes)),
         order
       });
       state.customFlow.sort((a, b) => a.order - b.order).forEach((item, index) => item.order = index);
@@ -1151,7 +1151,7 @@
     state.customSteps.push({
       id: `custom-${Date.now()}`,
       name,
-      minutes: Math.max(0, Math.min(60, minutes)),
+      minutes: Math.max(0, Math.min(90, minutes)),
       afterId: els.customPosition.value,
       order: Date.now()
     });
@@ -1888,6 +1888,7 @@
     const steps = getNoTimeSteps();
     return {
       totalSeconds: getNoTimeElapsed(),
+      completedAt: new Date().toISOString(),
       steps: steps.map((item, index) => ({
         name: item.name,
         completedAt: item.completedAt,
@@ -1999,10 +2000,10 @@
           <div class="history-item">
             <div>
               <strong>${escapeHtml(getQuestionLabel(entry) || "Question")}</strong>
-              <small>${escapeHtml([entry.number ? `#${entry.number}` : "", entry.date, `Took ${humanDuration(entry.elapsedSeconds)}`].filter(Boolean).join(" - "))}</small>
+              <small>${escapeHtml([entry.number ? `#${entry.number}` : "", entry.date, entry.noTime ? "" : `Took ${humanDuration(entry.elapsedSeconds)}`].filter(Boolean).join(" - "))}</small>
               ${entry.noTime ? renderNoTimeHistoryDetails(entry.noTime) : ""}
             </div>
-            <span>${escapeHtml(entry.completedAt ? new Date(entry.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Done")}</span>
+            ${entry.noTime ? "" : `<span>${escapeHtml(entry.completedAt ? formatClockTime(entry.completedAt) : "Done")}</span>`}
           </div>
         `).join("")}
       </section>
@@ -2013,9 +2014,9 @@
     return `<div class="history-steps">${
       noTime.steps.map((step) => `<span>
         <b>${escapeHtml(step.name)}</b>
-        <small>${hasNoTimeCompleted(step) ? formatTime(step.completedAt) : "--:--"} / ${formatTime(step.durationSeconds)}</small>
+        <small>${formatTime(step.durationSeconds)}</small>
       </span>`).join("")
-    }<em>Total ${formatTime(noTime.totalSeconds)}</em></div>`;
+    }<em>Total ${formatTime(noTime.totalSeconds)}${noTime.completedAt ? ` · ${escapeHtml(formatClockTime(noTime.completedAt))}` : ""}</em></div>`;
   }
 
   function normalizeNickname(value) {
@@ -2070,6 +2071,7 @@
       week: entry.week || weekKey(),
       noTime: entry.noTime ? {
         totalSeconds: Math.max(0, Math.floor(Number(entry.noTime.totalSeconds) || 0)),
+        completedAt: entry.noTime.completedAt || entry.completedAt || "",
         steps: Array.isArray(entry.noTime.steps) ? entry.noTime.steps.map(normalizeNoTimeHistoryStep).filter(Boolean) : []
       } : null
     };
@@ -2118,7 +2120,7 @@
     return {
       id: String(item.id || `custom-${Date.now()}`),
       name,
-      minutes: Math.max(0, Math.min(60, Number(item.minutes) || 0)),
+      minutes: Math.max(0, Math.min(90, Number(item.minutes) || 0)),
       order: Number.isFinite(Number(item.order)) ? Number(item.order) : Date.now()
     };
   }
@@ -2143,6 +2145,10 @@
     if (hours) return `${hours}h ${mins}m ${secs}s`;
     if (mins) return `${mins}m ${secs}s`;
     return `${secs}s`;
+  }
+
+  function formatClockTime(value) {
+    return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
 
   function cleanFirebaseMessage(error) {
