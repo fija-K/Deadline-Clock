@@ -2000,8 +2000,10 @@
           <div class="history-item">
             <div>
               <strong>${escapeHtml(getQuestionLabel(entry) || "Question")}</strong>
-              <small>${escapeHtml([entry.number ? `#${entry.number}` : "", entry.date, entry.noTime ? "" : `Took ${humanDuration(entry.elapsedSeconds)}`].filter(Boolean).join(" - "))}</small>
-              ${entry.noTime ? renderNoTimeHistoryDetails(entry.noTime) : ""}
+              <small>${escapeHtml(entry.noTime
+                ? [entry.noTime.completedAt ? formatClockTime(entry.noTime.completedAt) : "", entry.date].filter(Boolean).join(" - ")
+                : [entry.number ? `#${entry.number}` : "", entry.date, `Took ${humanDuration(entry.elapsedSeconds)}`].filter(Boolean).join(" - "))}</small>
+              ${entry.noTime ? renderNoTimeHistorySummary(entry.noTime) : ""}
             </div>
             ${entry.noTime ? "" : `<span>${escapeHtml(entry.completedAt ? formatClockTime(entry.completedAt) : "Done")}</span>`}
           </div>
@@ -2017,6 +2019,15 @@
         <small>${formatTime(step.durationSeconds)}</small>
       </span>`).join("")
     }<em>Total ${formatTime(noTime.totalSeconds)}${noTime.completedAt ? ` · ${escapeHtml(formatClockTime(noTime.completedAt))}` : ""}</em></div>`;
+  }
+
+  function renderNoTimeHistorySummary(noTime) {
+    return `<div class="history-steps">${
+      noTime.steps.map((step) => `<span>
+        <b>${escapeHtml(step.name)}</b>
+        <small>${formatTime(step.durationSeconds)}</small>
+      </span>`).join("")
+    }<em>Total ${formatTime(noTime.totalSeconds)}</em></div>`;
   }
 
   function normalizeNickname(value) {
