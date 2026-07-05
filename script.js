@@ -594,7 +594,7 @@
     els.skipStep.innerHTML = `<svg><use href="#icon-note"></use></svg><span>Finish Question</span>`;
     els.resetStep.innerHTML = `<svg><use href="#icon-reset"></use></svg><span>Reset Timer</span>`;
     renderNoTimeSummary(steps);
-    els.miniClockStep.textContent = "No Time Constraint";
+    els.miniClockStep.textContent = current ? `${currentIndex + 1}. ${current.name}` : "No Time Constraint";
     els.miniClockTime.textContent = formatTime(getNoTimeElapsed());
     els.miniStepDuration.textContent = "No Time Limit";
     els.miniProgressFill.style.width = "100%";
@@ -1412,7 +1412,7 @@
           .pip-no-time {
             display: grid;
             gap: 5px;
-            max-height: 84px;
+            max-height: 132px;
             overflow: auto;
           }
           .pip-no-time button {
@@ -1535,12 +1535,12 @@
             <input id="pipQuestionTitle" maxlength="80" placeholder="Question name">
             <button type="submit">Start Question</button>
           </form>
-          <div class="pip-no-time hidden" id="pipNoTimeList"></div>
           <div class="pip-actions" id="pipActions">
             <button id="pipToggle">Start</button>
             <button id="pipSkip">Skip</button>
             <button id="pipClose">Back</button>
           </div>
+          <div class="pip-no-time hidden" id="pipNoTimeList"></div>
         </div>`;
       pipWindow.document.querySelector("#pipToggle").addEventListener("click", () => {
         toggleRun();
@@ -1606,7 +1606,15 @@
     if (!pipWindow || pipWindow.closed || !item) return;
     applyPiPTheme();
     const steps = noTime ? getNoTimeSteps() : [];
-    pipWindow.document.querySelector("#pipStep").textContent = needsQuestionSetup ? "Set up question" : noTime ? "No Time Constraint" : item.name;
+    const noTimeCurrentIndex = noTime ? getNoTimeCurrentIndex() : 0;
+    const noTimeCurrent = noTime ? steps[noTimeCurrentIndex] : null;
+    pipWindow.document.querySelector("#pipStep").textContent = needsQuestionSetup
+      ? "Set up question"
+      : noTime && noTimeCurrent
+        ? `${noTimeCurrentIndex + 1}. ${noTimeCurrent.name}`
+        : noTime
+          ? "No Time Constraint"
+          : item.name;
     pipWindow.document.querySelector("#pipTime").textContent = needsQuestionSetup ? "Next" : state.sessionComplete ? "Done" : noTime ? formatTime(getNoTimeElapsed()) : isDecision ? "Yes / No" : formatTime(getElapsedSeconds(item));
     const duration = noTime ? 0 : isDecision ? 0 : getDurationSeconds(item);
     const progress = duration ? ((duration - state.remaining) / duration) * 100 : 0;
@@ -1616,7 +1624,7 @@
     pipWindow.document.querySelector("#pipSkip").textContent = noTime ? "Tick" : "Skip";
     pipWindow.document.querySelector("#pipClose").textContent = noTime ? "Submit" : "Back";
     pipWindow.document.querySelector("#pipNoTimeList").innerHTML = steps.map((step, index) => `<button type="button" data-no-time-toggle="${step.id}">
-      <span>${hasNoTimeCompleted(step) ? "✓" : index === getNoTimeCurrentIndex() ? "●" : "○"}</span>
+      <span>${hasNoTimeCompleted(step) ? "✓" : index === noTimeCurrentIndex ? "●" : "○"}</span>
       <strong>${escapeHtml(step.name)}</strong>
       <small>${hasNoTimeCompleted(step) ? formatTime(step.completedAt) : ""}</small>
     </button>`).join("");
@@ -1626,7 +1634,7 @@
     pipWindow.document.querySelector("#pipDecision").classList.toggle("hidden", needsQuestionSetup || !isDecision || state.sessionComplete);
     pipWindow.document.querySelector("#pipComplete").classList.toggle("hidden", !state.sessionComplete);
     pipWindow.document.querySelector("#pipSetup").classList.toggle("hidden", !needsQuestionSetup);
-    pipWindow.document.querySelector("#pipNoTimeList").classList.toggle("hidden", !noTime || !state.noTime.miniExpanded || needsQuestionSetup || state.sessionComplete);
+    pipWindow.document.querySelector("#pipNoTimeList").classList.toggle("hidden", !noTime || needsQuestionSetup || state.sessionComplete);
     pipWindow.document.querySelectorAll("#pipHearts button").forEach((button) => {
       button.classList.toggle("used", Number(button.dataset.hint) <= state.hintsUsed);
     });
