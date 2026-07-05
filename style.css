@@ -339,6 +339,15 @@ h1, h2, p {
   overflow-y: auto;
 }
 
+body.no-time-mode {
+  padding: 12px 30px;
+}
+
+body.no-time-mode .app-shell {
+  grid-template-columns: 390px minmax(0, 1fr);
+  height: calc(100vh - 24px);
+}
+
 .no-time-mode .brand-row {
   grid-template-columns: 38px 1fr;
   gap: 10px;
@@ -427,9 +436,12 @@ h1, h2, p {
 .no-time-mode .duration-line,
 .no-time-mode .progress-track,
 .no-time-mode .timer-buttons,
-.no-time-mode .tip-box,
 .no-time-mode .no-time-summary {
   margin-top: 12px;
+}
+
+.no-time-mode .tip-box {
+  display: none;
 }
 
 .estimated {
@@ -902,7 +914,7 @@ h1, h2, p {
 .no-time-summary {
   width: 100%;
   max-width: 840px;
-  max-height: 168px;
+  max-height: 128px;
   margin-top: 16px;
   padding: 16px 18px;
   border: 1px solid var(--line);
