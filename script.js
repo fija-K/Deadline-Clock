@@ -59,6 +59,8 @@
   const thresholds = [20, 25, 30, 35, 40, 45, 60];
   const breakDurations = [5, 10, 15];
   const branchAfterDecision = { yes: ["compare", "analyze", "notes"], no: ["learn", "analyze", "notes"] };
+  const NO_TIME_MODE = "no-time";
+  const noTimeDefaults = ["Read", "Think", "Plan", "Code", "Debug", "Submit"];
 
   const defaultState = {
     difficulty: "easy",
@@ -85,7 +87,12 @@
     breakRemaining: 0,
     nickname: "",
     currentQuestion: null,
-    questionHistory: []
+    questionHistory: [],
+    noTime: {
+      elapsedSeconds: 0,
+      steps: noTimeDefaults.map((name, order) => ({ id: `no-time-${order}`, name, order, completedAt: null })),
+      miniExpanded: false
+    }
   };
 
   let state = loadState();
@@ -93,6 +100,7 @@
   let breakHandle = null;
   let pipWindow = null;
   let cloudSaveHandle = null;
+  let draggedNoTimeStep = null;
   const cloud = {
     configured: false,
     ready: false,
@@ -125,6 +133,8 @@
     skipStep: $("#skipStep"),
     resetStep: $("#resetStep"),
     tipText: $("#tipText"),
+    noTimeSummary: $("#noTimeSummary"),
+    openCustomStep: $("#openCustomStep"),
     workspaceDrawer: $("#workspaceDrawer"),
     backdrop: $("#backdrop"),
     drawerTitle: $("#drawerTitle"),
@@ -150,6 +160,7 @@
     miniProgressFill: $("#miniProgressFill"),
     miniStepDuration: $("#miniStepDuration"),
     miniHearts: $("#miniHearts"),
+    miniNoTimeList: $("#miniNoTimeList"),
     miniToggleRun: $("#miniToggleRun"),
     miniSkipStep: $("#miniSkipStep"),
     miniPipBack: $("#miniPipBack"),
@@ -225,6 +236,7 @@
     next.questionHistory = Array.isArray(next.questionHistory)
       ? next.questionHistory.map(normalizeHistoryEntry).filter(Boolean)
       : [];
+    next.noTime = normalizeNoTime(next.noTime);
     const hadLegacyStats = next.stats && (
       Object.prototype.hasOwnProperty.call(next.stats, "today") ||
       Object.prototype.hasOwnProperty.call(next.stats, "weeklyGoal")
@@ -257,15 +269,20 @@
       next.breakPending = false;
       next.breakRemaining = 0;
     }
-    if (!baseWorkflows[next.difficulty] && next.difficulty !== "custom") next.difficulty = "easy";
+    if (!baseWorkflows[next.difficulty] && next.difficulty !== "custom" && next.difficulty !== NO_TIME_MODE) next.difficulty = "easy";
     if (!themes.some(([id]) => id === next.theme)) {
       next.theme = next.theme === "paper" || next.theme === "amoled" ? "batman" : next.theme === "create" ? "ironman" : "midnight";
     }
     next.running = false;
     const workflow = getWorkflow(next);
-    if (next.currentIndex >= workflow.length || next.currentIndex < 0) next.currentIndex = 0;
-    if (hadLegacyStats || !Number.isFinite(next.remaining) || next.remaining < 0) {
-      next.remaining = workflow.length ? getDurationSeconds(workflow[next.currentIndex], next) : 0;
+    if (next.difficulty === NO_TIME_MODE) {
+      next.currentIndex = getNoTimeCurrentIndex(next);
+      next.remaining = 0;
+    } else {
+      if (next.currentIndex >= workflow.length || next.currentIndex < 0) next.currentIndex = 0;
+      if (hadLegacyStats || !Number.isFinite(next.remaining) || next.remaining < 0) {
+        next.remaining = workflow.length ? getDurationSeconds(workflow[next.currentIndex], next) : 0;
+      }
     }
     return next;
   }
@@ -288,6 +305,17 @@
   }
 
   function getWorkflow(source = state) {
+    if (source.difficulty === NO_TIME_MODE) {
+      return getNoTimeSteps(source).map((item) => ({
+        id: item.id,
+        name: item.name,
+        minutes: 0,
+        purpose: "Elapsed Time",
+        subtitle: "No Time Limit",
+        icon: "icon-clock",
+        tip: "Check each step when it is done. DeadlineClock records the timestamp."
+      }));
+    }
     if (source.difficulty === "custom") {
       return getCustomFlow(source)
         .slice()
@@ -331,6 +359,31 @@
       minutes: item.minutes,
       order: Number.isFinite(Number(item.order)) ? Number(item.order) : index
     })).filter((item) => item.name);
+  }
+
+  function getNoTimeSteps(source = state) {
+    return normalizeNoTime(source.noTime).steps;
+  }
+
+  function getNoTimeCurrentIndex(source = state) {
+    const steps = getNoTimeSteps(source);
+    const index = steps.findIndex((item) => !hasNoTimeCompleted(item));
+    return index >= 0 ? index : Math.max(0, steps.length - 1);
+  }
+
+  function getNoTimeElapsed(source = state) {
+    return Math.max(0, Math.floor(Number(source.noTime?.elapsedSeconds) || 0));
+  }
+
+  function getNoTimeStepDuration(step, index, source = state) {
+    const steps = getNoTimeSteps(source);
+    const previousCompletedAt = index > 0 ? Number(steps[index - 1]?.completedAt) || 0 : 0;
+    const end = hasNoTimeCompleted(step) ? Number(step.completedAt) : getNoTimeElapsed(source);
+    return Math.max(0, end - previousCompletedAt);
+  }
+
+  function hasNoTimeCompleted(step) {
+    return step?.completedAt !== null && step?.completedAt !== undefined;
   }
 
   function ensureCustomFlow() {
@@ -377,7 +430,7 @@
   }
 
   function renderAll() {
-    skipZeroDurationSteps();
+    if (state.difficulty !== NO_TIME_MODE) skipZeroDurationSteps();
     const workflow = getWorkflow();
     if (state.currentIndex >= workflow.length || state.currentIndex < 0) state.currentIndex = 0;
     renderDifficulty();
@@ -392,12 +445,33 @@
   }
 
   function renderDifficulty() {
-    els.difficultyGrid.innerHTML = ["easy", "medium", "hard", "custom"].map((id) => (
-      `<button class="difficulty-btn ${id} ${state.difficulty === id ? "active" : ""}" data-difficulty="${id}">${title(id)}</button>`
+    els.difficultyGrid.innerHTML = ["easy", "medium", "hard", "custom", NO_TIME_MODE].map((id) => (
+      `<button class="difficulty-btn ${id} ${state.difficulty === id ? "active" : ""}" data-difficulty="${id}">${id === NO_TIME_MODE ? "No Time Constraint" : title(id)}</button>`
     )).join("");
   }
 
   function renderRoadmap(workflow) {
+    const noTime = state.difficulty === NO_TIME_MODE;
+    document.body.classList.toggle("no-time-mode", noTime);
+    els.openCustomStep.innerHTML = noTime
+      ? `<svg><use href="#icon-plus"></use></svg>Add Step`
+      : `<svg><use href="#icon-plus"></use></svg>Add Custom Step`;
+    if (noTime) {
+      const steps = getNoTimeSteps();
+      els.estimatedTime.textContent = "";
+      els.solvedBadge.textContent = "";
+      els.roadmap.innerHTML = steps.map((item, index) => {
+        const current = index === getNoTimeCurrentIndex();
+        return `<div class="step-row no-time-step ${hasNoTimeCompleted(item) ? "completed" : ""} ${current ? "current" : ""}" draggable="true" data-no-time-id="${item.id}">
+          <button class="node no-time-check" type="button" data-no-time-toggle="${item.id}" title="Mark step done">${hasNoTimeCompleted(item) ? "✓" : ""}</button>
+          <span class="step-icon"><svg><use href="#icon-clock"></use></svg></span>
+          <input class="no-time-name" value="${escapeHtml(item.name)}" data-no-time-name="${item.id}" aria-label="Step name">
+          <span class="no-time-stamp">${hasNoTimeCompleted(item) ? formatTime(item.completedAt) : current ? "now" : "--:--"}</span>
+          <button class="no-time-delete" type="button" data-no-time-delete="${item.id}" title="Delete step">×</button>
+        </div>`;
+      }).join("");
+      return;
+    }
     const total = workflow.reduce((sum, item) => sum + getDurationMinutes(item), 0);
     els.estimatedTime.textContent = `~ ${total} min`;
     els.solvedBadge.textContent = state.decision === "yes" ? "(Solved)" : "";
@@ -419,6 +493,10 @@
   }
 
   function renderTimer(workflow) {
+    if (state.difficulty === NO_TIME_MODE) {
+      renderNoTimeTimer();
+      return;
+    }
     const item = workflow[state.currentIndex];
     const isDecision = item && item.id === "decision";
     els.timerContent.classList.toggle("hidden", isDecision);
@@ -435,6 +513,7 @@
       els.stepSubtitle.textContent = "Open Custom Steps and build from scratch.";
       els.stepSubtitle.classList.remove("hidden");
       els.timeReadout.textContent = "00:00";
+      setDurationPrefix("/ ");
       els.stepDuration.textContent = "00:00";
       els.progressFill.style.width = "0%";
       els.tipText.textContent = "Use Custom Steps to decide your own process.";
@@ -469,10 +548,13 @@
     els.stepSubtitle.classList.toggle("hidden", !item.subtitle);
     renderHintHearts(item);
     els.timeReadout.textContent = formatTime(elapsed);
+    setDurationPrefix("/ ");
     els.stepDuration.textContent = formatTime(duration);
     els.tipText.textContent = item.tip;
     const progress = duration ? ((duration - state.remaining) / duration) * 100 : 0;
     els.progressFill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    els.skipStep.innerHTML = `<svg><use href="#icon-skip"></use></svg><span>Skip Step</span>`;
+    els.resetStep.innerHTML = `<svg><use href="#icon-reset"></use></svg><span>Reset Step</span>`;
     els.toggleRun.innerHTML = state.running
       ? `<svg><use href="#icon-pause"></use></svg><span>Pause</span>`
       : `<svg><use href="#icon-play"></use></svg><span>Start</span>`;
@@ -481,7 +563,73 @@
     els.miniStepDuration.textContent = formatTime(duration);
     els.miniProgressFill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
     els.miniToggleRun.innerHTML = state.running ? `<svg><use href="#icon-pause"></use></svg>` : `<svg><use href="#icon-play"></use></svg>`;
+    els.miniSkipStep.innerHTML = `<svg><use href="#icon-skip"></use></svg>`;
+    els.miniSkipStep.title = "Skip step";
+    els.noTimeSummary.classList.add("hidden");
+    els.miniNoTimeList.classList.add("hidden");
     updatePiP();
+  }
+
+  function renderNoTimeTimer() {
+    const steps = getNoTimeSteps();
+    const currentIndex = getNoTimeCurrentIndex();
+    const current = steps[currentIndex];
+    els.doneToast.classList.toggle("show", state.sessionComplete);
+    els.doneToast.setAttribute("aria-hidden", String(!state.sessionComplete));
+    els.timerContent.classList.remove("hidden");
+    els.decisionScreen.classList.add("hidden");
+    els.hintHearts.classList.add("hidden");
+    els.miniHearts.classList.add("hidden");
+    els.stepHeroIcon.innerHTML = `<use href="#icon-clock"></use>`;
+    els.stepTitle.textContent = "Elapsed Time";
+    els.stepPurpose.textContent = current ? `${currentIndex + 1}. ${current.name}` : "No Time Constraint";
+    els.stepSubtitle.textContent = "No Time Limit";
+    els.stepSubtitle.classList.remove("hidden");
+    els.timeReadout.textContent = formatTime(getNoTimeElapsed());
+    setDurationPrefix("");
+    els.stepDuration.textContent = "No Time Limit";
+    els.progressFill.style.width = "100%";
+    els.tipText.textContent = "Check each step when it is done. The timer keeps counting up.";
+    els.toggleRun.innerHTML = state.running
+      ? `<svg><use href="#icon-pause"></use></svg><span>Pause</span>`
+      : `<svg><use href="#icon-play"></use></svg><span>Start</span>`;
+    els.skipStep.innerHTML = `<svg><use href="#icon-note"></use></svg><span>Finish Question</span>`;
+    els.resetStep.innerHTML = `<svg><use href="#icon-reset"></use></svg><span>Reset Timer</span>`;
+    renderNoTimeSummary(steps);
+    els.miniClockStep.textContent = "No Time Constraint";
+    els.miniClockTime.textContent = formatTime(getNoTimeElapsed());
+    els.miniStepDuration.textContent = "No Time Limit";
+    els.miniProgressFill.style.width = "100%";
+    els.miniToggleRun.innerHTML = state.running ? `<svg><use href="#icon-pause"></use></svg>` : `<svg><use href="#icon-play"></use></svg>`;
+    els.miniSkipStep.innerHTML = `<svg><use href="#icon-note"></use></svg>`;
+    els.miniSkipStep.title = state.noTime.miniExpanded ? "Hide checklist" : "Show checklist";
+    renderMiniNoTimeList(steps);
+    updatePiP();
+  }
+
+  function renderNoTimeSummary(steps) {
+    els.noTimeSummary.classList.remove("hidden");
+    els.noTimeSummary.innerHTML = `<strong>Step Time Summary</strong>${
+      steps.map((item, index) => `<div>
+        <span>${escapeHtml(item.name)}</span>
+        <small>${hasNoTimeCompleted(item) ? `finished ${formatTime(item.completedAt)}` : index === getNoTimeCurrentIndex() ? "in progress" : "not completed"}</small>
+        <b>${hasNoTimeCompleted(item) || index === getNoTimeCurrentIndex() ? formatTime(getNoTimeStepDuration(item, index)) : "--:--"}</b>
+      </div>`).join("")
+    }<p>Total ${formatTime(getNoTimeElapsed())}</p>`;
+  }
+
+  function renderMiniNoTimeList(steps) {
+    els.miniNoTimeList.classList.toggle("hidden", !state.noTime.miniExpanded);
+    els.miniNoTimeList.innerHTML = steps.map((item, index) => `<button type="button" class="${hasNoTimeCompleted(item) ? "done" : index === getNoTimeCurrentIndex() ? "current" : ""}" data-no-time-toggle="${item.id}">
+      <span>${hasNoTimeCompleted(item) ? "✓" : index === getNoTimeCurrentIndex() ? "●" : "○"}</span>
+      <strong>${escapeHtml(item.name)}</strong>
+      <small>${hasNoTimeCompleted(item) ? formatTime(item.completedAt) : ""}</small>
+    </button>`).join("");
+  }
+
+  function setDurationPrefix(value) {
+    const node = els.stepDuration.previousSibling;
+    if (node && node.nodeType === Node.TEXT_NODE) node.textContent = value;
   }
 
   function renderWorkspace() {
@@ -491,7 +639,9 @@
     </div>`).join("");
 
     const workflow = getWorkflow();
-    els.timerSettings.innerHTML = workflow.filter((item) => item.id !== "decision").map((item) => `<div class="setting-row">
+    els.timerSettings.innerHTML = state.difficulty === NO_TIME_MODE
+      ? `<p class="drawer-copy">No countdown timers in No Time Constraint mode.</p>`
+      : workflow.filter((item) => item.id !== "decision").map((item) => `<div class="setting-row">
       <span>${escapeHtml(item.name)}</span>
       <span class="mini-editor" data-step-id="${item.id}">
         <button data-delta="-1">−</button><span>${getDurationMinutes(item)}</span><button data-delta="1">+</button>
@@ -557,6 +707,12 @@
       const difficulty = event.target.closest("[data-difficulty]");
       if (difficulty) changeDifficulty(difficulty.dataset.difficulty);
 
+      const noTimeToggle = event.target.closest("[data-no-time-toggle]");
+      if (noTimeToggle) toggleNoTimeStep(noTimeToggle.dataset.noTimeToggle);
+
+      const noTimeDelete = event.target.closest("[data-no-time-delete]");
+      if (noTimeDelete) deleteNoTimeStep(noTimeDelete.dataset.noTimeDelete);
+
       const deltaBtn = event.target.closest("[data-delta]");
       if (deltaBtn) adjustDuration(deltaBtn.closest("[data-step-id]").dataset.stepId, Number(deltaBtn.dataset.delta));
 
@@ -576,8 +732,33 @@
       if (moveCustom) moveCustomStep(moveCustom.dataset.customMove, Number(moveCustom.dataset.dir));
     });
 
+    document.addEventListener("input", (event) => {
+      const input = event.target.closest("[data-no-time-name]");
+      if (input) renameNoTimeStep(input.dataset.noTimeName, input.value);
+    });
+
+    document.addEventListener("dragstart", (event) => {
+      const row = event.target.closest("[data-no-time-id]");
+      if (!row) return;
+      draggedNoTimeStep = row.dataset.noTimeId;
+      event.dataTransfer.effectAllowed = "move";
+    });
+
+    document.addEventListener("dragover", (event) => {
+      if (!draggedNoTimeStep || !event.target.closest("[data-no-time-id]")) return;
+      event.preventDefault();
+    });
+
+    document.addEventListener("drop", (event) => {
+      const row = event.target.closest("[data-no-time-id]");
+      if (!row || !draggedNoTimeStep) return;
+      event.preventDefault();
+      moveNoTimeStep(draggedNoTimeStep, row.dataset.noTimeId);
+      draggedNoTimeStep = null;
+    });
+
     $("#workspaceBtn").addEventListener("click", () => openDrawer("themes"));
-    $("#openCustomStep").addEventListener("click", () => openDrawer("custom"));
+    $("#openCustomStep").addEventListener("click", () => state.difficulty === NO_TIME_MODE ? addNoTimeStep() : openDrawer("custom"));
     $("#breakBtn").addEventListener("click", () => openDrawer("breaks"));
     els.historyBtn.addEventListener("click", openHistory);
     els.closeHistory.addEventListener("click", closeHistory);
@@ -595,7 +776,13 @@
     els.applyBreakSettings.addEventListener("click", applyBreakSettings);
     els.customForm.addEventListener("submit", addCustomStep);
     els.miniToggleRun.addEventListener("click", toggleRun);
-    els.miniSkipStep.addEventListener("click", () => completeCurrentStep(false));
+    els.miniSkipStep.addEventListener("click", () => {
+      if (state.difficulty === NO_TIME_MODE) {
+        toggleMiniNoTimeList();
+      } else {
+        completeCurrentStep(false);
+      }
+    });
     els.miniPipBack.addEventListener("click", closeMiniMode);
     els.hintHearts.addEventListener("click", handleHintClick);
     els.miniHearts.addEventListener("click", handleHintClick);
@@ -618,8 +805,13 @@
     state.completedIds = [];
     state.hintsUsed = 0;
     const workflow = getWorkflow();
-    state.currentIndex = workflow.length ? Math.min(was?.id === "solve" ? 1 : 0, workflow.length - 1) : 0;
-    state.remaining = workflow.length ? getDurationSeconds(workflow[state.currentIndex]) : 0;
+    if (difficulty === NO_TIME_MODE) {
+      state.currentIndex = getNoTimeCurrentIndex();
+      state.remaining = 0;
+    } else {
+      state.currentIndex = workflow.length ? Math.min(was?.id === "solve" ? 1 : 0, workflow.length - 1) : 0;
+      state.remaining = workflow.length ? getDurationSeconds(workflow[state.currentIndex]) : 0;
+    }
     state.running = false;
     renderAll();
     stopTimer();
@@ -670,6 +862,12 @@
 
   function toggleRun() {
     if (state.sessionComplete) return;
+    if (state.difficulty === NO_TIME_MODE) {
+      state.running = !state.running;
+      state.running ? startTimer() : stopTimer();
+      renderAll();
+      return;
+    }
     if (!currentStep()) {
       state.running = false;
       if (state.difficulty === "custom") openDrawer("custom");
@@ -683,6 +881,17 @@
 
   function startTimer() {
     stopTimer();
+    if (state.difficulty === NO_TIME_MODE) {
+      tickHandle = setInterval(() => {
+        if (!state.running) return;
+        state.noTime.elapsedSeconds += 1;
+        addFocusSecond();
+        renderTimer(getWorkflow());
+        renderStats();
+        save();
+      }, 1000);
+      return;
+    }
     if (!currentStep()) {
       state.running = false;
       renderAll();
@@ -713,6 +922,10 @@
   }
 
   function completeCurrentStep(countFocusTime) {
+    if (state.difficulty === NO_TIME_MODE) {
+      finishNoTimeQuestion();
+      return;
+    }
     const item = currentStep();
     if (!item || item.id === "decision") return;
     const durationSeconds = getDurationSeconds(item);
@@ -856,6 +1069,10 @@
   }
 
   function resetCurrentStep() {
+    if (state.difficulty === NO_TIME_MODE) {
+      resetNoTimeTimer();
+      return;
+    }
     const item = currentStep();
     if (!item || item.id === "decision") return;
     state.remaining = getDurationSeconds(item);
@@ -863,6 +1080,12 @@
   }
 
   function resetSession() {
+    if (state.difficulty === NO_TIME_MODE) {
+      resetNoTimeTimer();
+      renderAll();
+      stopTimer();
+      return;
+    }
     state.completedIds = [];
     state.decision = null;
     state.sessionComplete = false;
@@ -957,6 +1180,82 @@
     } else {
       state.customSteps = copy;
     }
+    renderAll();
+  }
+
+  function addNoTimeStep() {
+    const steps = getNoTimeSteps();
+    state.noTime.steps = [...steps, {
+      id: `no-time-${Date.now()}`,
+      name: "New Step",
+      order: steps.length,
+      completedAt: null
+    }];
+    state.currentIndex = getNoTimeCurrentIndex();
+    renderAll();
+  }
+
+  function renameNoTimeStep(id, value) {
+    const clean = String(value || "").trimStart().replace(/\s+/g, " ").slice(0, 40);
+    state.noTime.steps = getNoTimeSteps().map((item) => item.id === id ? { ...item, name: clean || "Step" } : item);
+    save();
+  }
+
+  function deleteNoTimeStep(id) {
+    const next = getNoTimeSteps().filter((item) => item.id !== id);
+    state.noTime.steps = (next.length ? next : [{ id: `no-time-${Date.now()}`, name: "Step", order: 0, completedAt: null }])
+      .map((item, order) => ({ ...item, order }));
+    state.currentIndex = getNoTimeCurrentIndex();
+    renderAll();
+  }
+
+  function moveNoTimeStep(fromId, toId) {
+    if (fromId === toId) return;
+    const list = getNoTimeSteps();
+    const fromIndex = list.findIndex((item) => item.id === fromId);
+    const toIndex = list.findIndex((item) => item.id === toId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [item] = list.splice(fromIndex, 1);
+    list.splice(toIndex, 0, item);
+    state.noTime.steps = list.map((step, order) => ({ ...step, order }));
+    state.currentIndex = getNoTimeCurrentIndex();
+    renderAll();
+  }
+
+  function toggleNoTimeStep(id) {
+    const steps = getNoTimeSteps();
+    state.noTime.steps = steps.map((item) => {
+      if (item.id !== id) return item;
+      return { ...item, completedAt: hasNoTimeCompleted(item) ? null : getNoTimeElapsed() };
+    });
+    state.currentIndex = getNoTimeCurrentIndex();
+    renderAll();
+  }
+
+  function toggleMiniNoTimeList() {
+    state.noTime.miniExpanded = !state.noTime.miniExpanded;
+    renderAll();
+  }
+
+  function resetNoTimeTimer() {
+    state.noTime.elapsedSeconds = 0;
+    state.noTime.steps = getNoTimeSteps().map((item) => ({ ...item, completedAt: null }));
+    state.currentIndex = 0;
+    state.sessionComplete = false;
+    state.running = false;
+    stopTimer();
+  }
+
+  function finishNoTimeQuestion() {
+    const steps = getNoTimeSteps();
+    const elapsed = getNoTimeElapsed();
+    state.noTime.steps = steps.map((item) => hasNoTimeCompleted(item) ? item : { ...item, completedAt: elapsed });
+    if (!state.sessionComplete) state.stats.streak += 1;
+    recordCurrentQuestion();
+    state.sessionComplete = true;
+    state.running = false;
+    stopTimer();
+    notify();
     renderAll();
   }
 
@@ -1087,8 +1386,40 @@
           .pip-progress-row.hidden,
           .pip-decision.hidden,
           .pip-complete.hidden,
-          .pip-setup.hidden {
+          .pip-setup.hidden,
+          .pip-no-time.hidden {
             display: none;
+          }
+          .pip-no-time {
+            display: grid;
+            gap: 5px;
+            max-height: 84px;
+            overflow: auto;
+          }
+          .pip-no-time button {
+            display: grid;
+            grid-template-columns: 18px 1fr auto;
+            gap: 6px;
+            align-items: center;
+            height: 24px;
+            padding: 0 4px;
+            border-color: transparent;
+            background: transparent;
+            text-align: left;
+          }
+          .pip-no-time span {
+            color: var(--pip-primary);
+            font-weight: 900;
+          }
+          .pip-no-time strong {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+          .pip-no-time small {
+            color: var(--pip-primary);
+            font-variant-numeric: tabular-nums;
           }
           .pip-decision {
             display: grid;
@@ -1187,6 +1518,7 @@
             <input id="pipQuestionDescription" maxlength="160" placeholder="Description">
             <button type="submit">Start Question</button>
           </form>
+          <div class="pip-no-time hidden" id="pipNoTimeList"></div>
           <div class="pip-actions" id="pipActions">
             <button id="pipToggle">Start</button>
             <button id="pipSkip">Skip</button>
@@ -1198,7 +1530,17 @@
         updatePiP();
       });
       pipWindow.document.querySelector("#pipSkip").addEventListener("click", () => {
-        completeCurrentStep(false);
+        if (state.difficulty === NO_TIME_MODE) {
+          toggleMiniNoTimeList();
+        } else {
+          completeCurrentStep(false);
+        }
+        updatePiP();
+      });
+      pipWindow.document.querySelector("#pipNoTimeList").addEventListener("click", (event) => {
+        const button = event.target.closest("[data-no-time-toggle]");
+        if (!button) return;
+        toggleNoTimeStep(button.dataset.noTimeToggle);
         updatePiP();
       });
       pipWindow.document.querySelector("#pipClose").addEventListener("click", closeMiniMode);
@@ -1235,25 +1577,34 @@
 
   function updatePiP() {
     const item = currentStep();
+    const noTime = state.difficulty === NO_TIME_MODE;
     const isHint = item?.id === "hints";
     const isDecision = item?.id === "decision";
     const needsQuestionSetup = Boolean(cloud.user && !state.currentQuestion && !state.sessionComplete);
     els.miniHearts.classList.toggle("hidden", !isHint);
     if (!pipWindow || pipWindow.closed || !item) return;
     applyPiPTheme();
-    pipWindow.document.querySelector("#pipStep").textContent = needsQuestionSetup ? "Set up question" : item.name;
-    pipWindow.document.querySelector("#pipTime").textContent = needsQuestionSetup ? "Next" : state.sessionComplete ? "Done" : isDecision ? "Yes / No" : formatTime(getElapsedSeconds(item));
-    const duration = isDecision ? 0 : getDurationSeconds(item);
+    const steps = noTime ? getNoTimeSteps() : [];
+    pipWindow.document.querySelector("#pipStep").textContent = needsQuestionSetup ? "Set up question" : noTime ? "No Time Constraint" : item.name;
+    pipWindow.document.querySelector("#pipTime").textContent = needsQuestionSetup ? "Next" : state.sessionComplete ? "Done" : noTime ? formatTime(getNoTimeElapsed()) : isDecision ? "Yes / No" : formatTime(getElapsedSeconds(item));
+    const duration = noTime ? 0 : isDecision ? 0 : getDurationSeconds(item);
     const progress = duration ? ((duration - state.remaining) / duration) * 100 : 0;
-    pipWindow.document.querySelector("#pipProgress").style.width = `${Math.max(0, Math.min(100, progress))}%`;
-    pipWindow.document.querySelector("#pipTotal").textContent = duration ? formatTime(duration) : "--:--";
+    pipWindow.document.querySelector("#pipProgress").style.width = noTime ? "100%" : `${Math.max(0, Math.min(100, progress))}%`;
+    pipWindow.document.querySelector("#pipTotal").textContent = noTime ? "No limit" : duration ? formatTime(duration) : "--:--";
     pipWindow.document.querySelector("#pipToggle").textContent = state.running ? "Pause" : "Start";
+    pipWindow.document.querySelector("#pipSkip").textContent = noTime ? (state.noTime.miniExpanded ? "Hide" : "List") : "Skip";
+    pipWindow.document.querySelector("#pipNoTimeList").innerHTML = steps.map((step, index) => `<button type="button" data-no-time-toggle="${step.id}">
+      <span>${hasNoTimeCompleted(step) ? "✓" : index === getNoTimeCurrentIndex() ? "●" : "○"}</span>
+      <strong>${escapeHtml(step.name)}</strong>
+      <small>${hasNoTimeCompleted(step) ? formatTime(step.completedAt) : ""}</small>
+    </button>`).join("");
     pipWindow.document.querySelector("#pipHearts").classList.toggle("show", isHint);
     pipWindow.document.querySelector("#pipProgressRow").classList.toggle("hidden", needsQuestionSetup || isDecision || state.sessionComplete);
     pipWindow.document.querySelector("#pipActions").classList.toggle("hidden", needsQuestionSetup || isDecision || state.sessionComplete);
     pipWindow.document.querySelector("#pipDecision").classList.toggle("hidden", needsQuestionSetup || !isDecision || state.sessionComplete);
     pipWindow.document.querySelector("#pipComplete").classList.toggle("hidden", !state.sessionComplete);
     pipWindow.document.querySelector("#pipSetup").classList.toggle("hidden", !needsQuestionSetup);
+    pipWindow.document.querySelector("#pipNoTimeList").classList.toggle("hidden", !noTime || !state.noTime.miniExpanded || needsQuestionSetup || state.sessionComplete);
     pipWindow.document.querySelectorAll("#pipHearts button").forEach((button) => {
       button.classList.toggle("used", Number(button.dataset.hint) <= state.hintsUsed);
     });
@@ -1308,6 +1659,7 @@
     state.remaining = getDurationSeconds(getWorkflow()[0]);
     state.running = false;
     state.currentQuestion = null;
+    if (state.difficulty === NO_TIME_MODE) resetNoTimeTimer();
     els.doneToast.classList.remove("show");
     els.doneToast.setAttribute("aria-hidden", "true");
     renderAll();
@@ -1485,9 +1837,23 @@
   }
 
   function recordCurrentQuestion() {
-    if (!cloud.user || !state.currentQuestion || state.currentQuestion.completed) return;
+    if (!cloud.user) return;
+    const noTimeData = state.difficulty === NO_TIME_MODE ? buildNoTimeHistory() : null;
+    const question = state.currentQuestion || (noTimeData ? {
+      id: `question-${Date.now()}`,
+      number: "",
+      title: "No Time Constraint",
+      description: "",
+      date: dayKey(),
+      startedAt: new Date().toISOString(),
+      elapsedSeconds: noTimeData.totalSeconds,
+      completed: false
+    } : null);
+    if (!question || question.completed) return;
     const entry = normalizeHistoryEntry({
-      ...state.currentQuestion,
+      ...question,
+      elapsedSeconds: noTimeData ? noTimeData.totalSeconds : question.elapsedSeconds,
+      noTime: noTimeData,
       completed: true,
       completedAt: new Date().toISOString(),
       date: dayKey(),
@@ -1496,6 +1862,18 @@
     if (!entry) return;
     state.questionHistory = [entry, ...state.questionHistory.filter((item) => item.id !== entry.id)].slice(0, 120);
     state.currentQuestion = null;
+  }
+
+  function buildNoTimeHistory() {
+    const steps = getNoTimeSteps();
+    return {
+      totalSeconds: getNoTimeElapsed(),
+      steps: steps.map((item, index) => ({
+        name: item.name,
+        completedAt: item.completedAt,
+        durationSeconds: hasNoTimeCompleted(item) ? getNoTimeStepDuration(item, index) : 0
+      }))
+    };
   }
 
   async function signOutOfCloud() {
@@ -1602,12 +1980,22 @@
             <div>
               <strong>${escapeHtml(getQuestionLabel(entry) || "Question")}</strong>
               <small>${escapeHtml([entry.number ? `#${entry.number}` : "", entry.date, `Took ${humanDuration(entry.elapsedSeconds)}`].filter(Boolean).join(" - "))}</small>
+              ${entry.noTime ? renderNoTimeHistoryDetails(entry.noTime) : ""}
             </div>
             <span>${escapeHtml(entry.completedAt ? new Date(entry.completedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "Done")}</span>
           </div>
         `).join("")}
       </section>
     `).join("");
+  }
+
+  function renderNoTimeHistoryDetails(noTime) {
+    return `<div class="history-steps">${
+      noTime.steps.map((step) => `<span>
+        <b>${escapeHtml(step.name)}</b>
+        <small>${hasNoTimeCompleted(step) ? formatTime(step.completedAt) : "--:--"} / ${formatTime(step.durationSeconds)}</small>
+      </span>`).join("")
+    }<em>Total ${formatTime(noTime.totalSeconds)}</em></div>`;
   }
 
   function normalizeNickname(value) {
@@ -1659,7 +2047,47 @@
       ...question,
       completed: true,
       completedAt: entry.completedAt || new Date().toISOString(),
-      week: entry.week || weekKey()
+      week: entry.week || weekKey(),
+      noTime: entry.noTime ? {
+        totalSeconds: Math.max(0, Math.floor(Number(entry.noTime.totalSeconds) || 0)),
+        steps: Array.isArray(entry.noTime.steps) ? entry.noTime.steps.map(normalizeNoTimeHistoryStep).filter(Boolean) : []
+      } : null
+    };
+  }
+
+  function normalizeNoTime(value) {
+    const source = value && typeof value === "object" ? value : {};
+    const rawSteps = Array.isArray(source.steps) && source.steps.length
+      ? source.steps
+      : noTimeDefaults.map((name, order) => ({ id: `no-time-${order}`, name, order, completedAt: null }));
+    return {
+      elapsedSeconds: Math.max(0, Math.floor(Number(source.elapsedSeconds) || 0)),
+      miniExpanded: Boolean(source.miniExpanded),
+      steps: rawSteps.map(normalizeNoTimeStep).filter(Boolean).sort((a, b) => a.order - b.order)
+    };
+  }
+
+  function normalizeNoTimeStep(item, index = 0) {
+    if (!item || typeof item !== "object") return null;
+    const name = String(item.name || "").trim().replace(/\s+/g, " ").slice(0, 40);
+    if (!name) return null;
+    const completedAt = Number(item.completedAt);
+    const hasCompletedAt = item.completedAt !== null && item.completedAt !== undefined && item.completedAt !== "";
+    return {
+      id: String(item.id || `no-time-${Date.now()}-${index}`),
+      name,
+      order: Number.isFinite(Number(item.order)) ? Number(item.order) : index,
+      completedAt: hasCompletedAt && Number.isFinite(completedAt) && completedAt >= 0 ? Math.floor(completedAt) : null
+    };
+  }
+
+  function normalizeNoTimeHistoryStep(item, index = 0) {
+    const normalized = normalizeNoTimeStep(item, index);
+    if (!normalized) return null;
+    return {
+      name: normalized.name,
+      completedAt: normalized.completedAt,
+      durationSeconds: Math.max(0, Math.floor(Number(item.durationSeconds) || 0))
     };
   }
 
@@ -1771,7 +2199,7 @@
   }
 
   function labelFor(id) {
-    return baseWorkflows[state.difficulty].find((item) => item.id === id)?.name || "workflow";
+    return (baseWorkflows[state.difficulty] || []).find((item) => item.id === id)?.name || "workflow";
   }
 
   function escapeHtml(value) {
