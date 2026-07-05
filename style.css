@@ -178,7 +178,7 @@ svg {
   grid-template-columns: 430px minmax(0, 1fr);
   gap: 16px;
   width: min(1420px, 100%);
-  height: min(720px, 100%);
+  height: min(720px, calc(100vh - clamp(28px, 5vh, 56px) * 2));
   margin: 0;
   min-height: 0;
 }
@@ -333,7 +333,42 @@ h1, h2, p {
 
 .no-time-mode .roadmap {
   flex: 1 1 auto;
+  display: block;
+  max-height: none;
   overflow-y: auto;
+}
+
+.no-time-mode .timer-content {
+  justify-content: flex-start;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.no-time-mode .step-hero-icon {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 6px;
+}
+
+.no-time-mode .timer-content h2 {
+  margin-bottom: 8px;
+}
+
+.no-time-mode #stepPurpose,
+.no-time-mode #stepSubtitle {
+  margin-bottom: 6px;
+}
+
+.no-time-mode .time-readout {
+  font-size: clamp(64px, 7vw, 92px);
+}
+
+.no-time-mode .duration-line,
+.no-time-mode .progress-track,
+.no-time-mode .timer-buttons,
+.no-time-mode .tip-box,
+.no-time-mode .no-time-summary {
+  margin-top: 12px;
 }
 
 .estimated {
@@ -357,8 +392,10 @@ h1, h2, p {
 }
 
 .roadmap {
+  flex: 1 1 auto;
   padding: 0 16px 6px;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .step-row {
@@ -804,12 +841,14 @@ h1, h2, p {
 .no-time-summary {
   width: 100%;
   max-width: 840px;
+  max-height: 168px;
   margin-top: 16px;
   padding: 16px 18px;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: rgba(255,255,255,.025);
   text-align: left;
+  overflow-y: auto;
 }
 
 .no-time-summary.hidden {
