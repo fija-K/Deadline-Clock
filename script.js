@@ -182,13 +182,9 @@
     historyForm: $("#historyForm"),
     questionModal: $("#questionModal"),
     closeQuestionSetup: $("#closeQuestionSetup"),
-    questionNumber: $("#questionNumber"),
     questionTitle: $("#questionTitle"),
-    questionDescription: $("#questionDescription"),
     questionEditForm: $("#questionEditForm"),
-    questionEditNumber: $("#questionEditNumber"),
     questionEditTitle: $("#questionEditTitle"),
-    questionEditDescription: $("#questionEditDescription"),
     historyList: $("#historyList")
   };
 
@@ -565,6 +561,8 @@
     els.miniToggleRun.innerHTML = state.running ? `<svg><use href="#icon-pause"></use></svg>` : `<svg><use href="#icon-play"></use></svg>`;
     els.miniSkipStep.innerHTML = `<svg><use href="#icon-skip"></use></svg>`;
     els.miniSkipStep.title = "Skip step";
+    els.miniPipBack.innerHTML = `<svg><use href="#icon-pip"></use></svg>`;
+    els.miniPipBack.title = "Back to page";
     els.noTimeSummary.classList.add("hidden");
     els.miniNoTimeList.classList.add("hidden");
     updatePiP();
@@ -601,8 +599,11 @@
     els.miniStepDuration.textContent = "No Time Limit";
     els.miniProgressFill.style.width = "100%";
     els.miniToggleRun.innerHTML = state.running ? `<svg><use href="#icon-pause"></use></svg>` : `<svg><use href="#icon-play"></use></svg>`;
-    els.miniSkipStep.innerHTML = `<svg><use href="#icon-note"></use></svg>`;
-    els.miniSkipStep.title = state.noTime.miniExpanded ? "Hide checklist" : "Show checklist";
+    els.miniSkipStep.innerHTML = `<span>✓</span>`;
+    els.miniSkipStep.title = "Tick current step";
+    els.miniPipBack.innerHTML = `<svg><use href="#icon-note"></use></svg>`;
+    els.miniPipBack.title = "Submit question";
+    state.noTime.miniExpanded = false;
     renderMiniNoTimeList(steps);
     updatePiP();
   }
@@ -778,12 +779,18 @@
     els.miniToggleRun.addEventListener("click", toggleRun);
     els.miniSkipStep.addEventListener("click", () => {
       if (state.difficulty === NO_TIME_MODE) {
-        toggleMiniNoTimeList();
+        tickCurrentNoTimeStep();
       } else {
         completeCurrentStep(false);
       }
     });
-    els.miniPipBack.addEventListener("click", closeMiniMode);
+    els.miniPipBack.addEventListener("click", () => {
+      if (state.difficulty === NO_TIME_MODE) {
+        finishNoTimeQuestion();
+      } else {
+        closeMiniMode();
+      }
+    });
     els.hintHearts.addEventListener("click", handleHintClick);
     els.miniHearts.addEventListener("click", handleHintClick);
     els.nextQuestionBtn.addEventListener("click", nextQuestion);
@@ -1224,12 +1231,24 @@
 
   function toggleNoTimeStep(id) {
     const steps = getNoTimeSteps();
-    state.noTime.steps = steps.map((item) => {
-      if (item.id !== id) return item;
-      return { ...item, completedAt: hasNoTimeCompleted(item) ? null : getNoTimeElapsed() };
-    });
+    const target = steps.find((item) => item.id === id);
+    if (!target) return;
+    const willComplete = !hasNoTimeCompleted(target);
+    state.noTime.steps = steps.map((item) => item.id === id
+      ? { ...item, completedAt: willComplete ? getNoTimeElapsed() : null }
+      : item);
     state.currentIndex = getNoTimeCurrentIndex();
+    if (willComplete && getNoTimeSteps().every(hasNoTimeCompleted)) {
+      finishNoTimeQuestion();
+      return;
+    }
     renderAll();
+  }
+
+  function tickCurrentNoTimeStep() {
+    const step = getNoTimeSteps()[getNoTimeCurrentIndex()];
+    if (!step || hasNoTimeCompleted(step)) return;
+    toggleNoTimeStep(step.id);
   }
 
   function toggleMiniNoTimeList() {
@@ -1513,9 +1532,7 @@
             <button id="pipNextQuestion">Next Question</button>
           </div>
           <form class="pip-setup hidden" id="pipSetup">
-            <input id="pipQuestionNumber" maxlength="12" placeholder="Question no.">
             <input id="pipQuestionTitle" maxlength="80" placeholder="Question name">
-            <input id="pipQuestionDescription" maxlength="160" placeholder="Description">
             <button type="submit">Start Question</button>
           </form>
           <div class="pip-no-time hidden" id="pipNoTimeList"></div>
@@ -1531,7 +1548,7 @@
       });
       pipWindow.document.querySelector("#pipSkip").addEventListener("click", () => {
         if (state.difficulty === NO_TIME_MODE) {
-          toggleMiniNoTimeList();
+          tickCurrentNoTimeStep();
         } else {
           completeCurrentStep(false);
         }
@@ -1543,7 +1560,13 @@
         toggleNoTimeStep(button.dataset.noTimeToggle);
         updatePiP();
       });
-      pipWindow.document.querySelector("#pipClose").addEventListener("click", closeMiniMode);
+      pipWindow.document.querySelector("#pipClose").addEventListener("click", () => {
+        if (state.difficulty === NO_TIME_MODE) {
+          finishNoTimeQuestion();
+        } else {
+          closeMiniMode();
+        }
+      });
       pipWindow.document.querySelector("#pipHearts").addEventListener("click", handleHintClick);
       pipWindow.document.querySelector("#pipDecision").addEventListener("click", (event) => {
         const button = event.target.closest("[data-pip-decision]");
@@ -1554,10 +1577,8 @@
       pipWindow.document.querySelector("#pipNextQuestion").addEventListener("click", nextQuestion);
       pipWindow.document.querySelector("#pipSetup").addEventListener("submit", (event) => {
         event.preventDefault();
-        const number = pipWindow.document.querySelector("#pipQuestionNumber").value;
         const title = pipWindow.document.querySelector("#pipQuestionTitle").value;
-        const description = pipWindow.document.querySelector("#pipQuestionDescription").value;
-        setCurrentQuestion(number, title, description);
+        setCurrentQuestion("", title, "");
         beginQuestionRun();
       });
       pipWindow.addEventListener("pagehide", () => {
@@ -1592,7 +1613,8 @@
     pipWindow.document.querySelector("#pipProgress").style.width = noTime ? "100%" : `${Math.max(0, Math.min(100, progress))}%`;
     pipWindow.document.querySelector("#pipTotal").textContent = noTime ? "No limit" : duration ? formatTime(duration) : "--:--";
     pipWindow.document.querySelector("#pipToggle").textContent = state.running ? "Pause" : "Start";
-    pipWindow.document.querySelector("#pipSkip").textContent = noTime ? (state.noTime.miniExpanded ? "Hide" : "List") : "Skip";
+    pipWindow.document.querySelector("#pipSkip").textContent = noTime ? "Tick" : "Skip";
+    pipWindow.document.querySelector("#pipClose").textContent = noTime ? "Submit" : "Back";
     pipWindow.document.querySelector("#pipNoTimeList").innerHTML = steps.map((step, index) => `<button type="button" data-no-time-toggle="${step.id}">
       <span>${hasNoTimeCompleted(step) ? "✓" : index === getNoTimeCurrentIndex() ? "●" : "○"}</span>
       <strong>${escapeHtml(step.name)}</strong>
@@ -1756,9 +1778,7 @@
       els.questionModal.classList.remove("hidden");
       els.questionModal.setAttribute("aria-hidden", "false");
     }
-    els.questionNumber.value = state.currentQuestion?.number || "";
     els.questionTitle.value = state.currentQuestion?.title || "";
-    els.questionDescription.value = state.currentQuestion?.description || "";
     window.setTimeout(() => els.questionTitle.focus(), 0);
     renderHistory();
   }
@@ -1769,10 +1789,8 @@
       renderAuthUI("Please sign in to save question history.");
       return;
     }
-    const number = cleanQuestionNumber(els.questionNumber.value);
     const title = cleanQuestionTitle(els.questionTitle.value);
-    const description = cleanQuestionDescription(els.questionDescription.value);
-    setCurrentQuestion(number, title, description);
+    setCurrentQuestion("", title, "");
     closeQuestionSetup();
     beginQuestionRun();
   }
@@ -1806,14 +1824,8 @@
 
   function renderQuestionEditor() {
     if (!els.questionEditForm) return;
-    if (document.activeElement !== els.questionEditNumber) {
-      els.questionEditNumber.value = state.currentQuestion?.number || "";
-    }
     if (document.activeElement !== els.questionEditTitle) {
       els.questionEditTitle.value = state.currentQuestion?.title || "";
-    }
-    if (document.activeElement !== els.questionEditDescription) {
-      els.questionEditDescription.value = state.currentQuestion?.description || "";
     }
   }
 
@@ -1828,9 +1840,9 @@
     };
     state.currentQuestion = {
       ...existing,
-      number: cleanQuestionNumber(els.questionEditNumber.value),
+      number: "",
       title: cleanQuestionTitle(els.questionEditTitle.value),
-      description: cleanQuestionDescription(els.questionEditDescription.value),
+      description: "",
       completed: false
     };
     renderAll();
