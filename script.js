@@ -432,6 +432,7 @@
     renderDifficulty();
     renderRoadmap(workflow);
     renderTimer(workflow);
+    if (state.breakActive) renderBreakMini();
     renderWorkspace();
     renderStats();
     renderTopButtons();
@@ -565,6 +566,24 @@
     els.miniPipBack.title = "Back to page";
     els.noTimeSummary.classList.add("hidden");
     els.miniNoTimeList.classList.add("hidden");
+    updatePiP();
+  }
+
+  function renderBreakMini() {
+    const total = Math.max(1, state.breakDuration * 60);
+    const remaining = state.breakRemaining || total;
+    const progress = ((total - remaining) / total) * 100;
+    els.miniHearts.classList.add("hidden");
+    els.miniNoTimeList.classList.add("hidden");
+    els.miniClockStep.textContent = "Break Time";
+    els.miniClockTime.textContent = formatTime(remaining);
+    els.miniStepDuration.textContent = formatTime(total);
+    els.miniProgressFill.style.width = `${Math.max(0, Math.min(100, progress))}%`;
+    els.miniToggleRun.innerHTML = breakHandle ? `<svg><use href="#icon-pause"></use></svg>` : `<svg><use href="#icon-play"></use></svg>`;
+    els.miniSkipStep.innerHTML = `<span>Skip</span>`;
+    els.miniSkipStep.title = "Skip break";
+    els.miniPipBack.innerHTML = `<svg><use href="#icon-pip"></use></svg>`;
+    els.miniPipBack.title = "Back to page";
     updatePiP();
   }
 
@@ -776,16 +795,32 @@
     $("#skipBreak").addEventListener("click", finishBreak);
     els.applyBreakSettings.addEventListener("click", applyBreakSettings);
     els.customForm.addEventListener("submit", addCustomStep);
-    els.miniToggleRun.addEventListener("click", toggleRun);
+    els.miniToggleRun.addEventListener("click", () => {
+      if (state.breakActive) {
+        if (breakHandle) {
+          clearInterval(breakHandle);
+          breakHandle = null;
+          renderBreakMini();
+        } else {
+          startBreak();
+        }
+      } else {
+        toggleRun();
+      }
+    });
     els.miniSkipStep.addEventListener("click", () => {
-      if (state.difficulty === NO_TIME_MODE) {
+      if (state.breakActive) {
+        finishBreak();
+      } else if (state.difficulty === NO_TIME_MODE) {
         tickCurrentNoTimeStep();
       } else {
         completeCurrentStep(false);
       }
     });
     els.miniPipBack.addEventListener("click", () => {
-      if (state.difficulty === NO_TIME_MODE) {
+      if (state.breakActive) {
+        closeMiniMode();
+      } else if (state.difficulty === NO_TIME_MODE) {
         finishNoTimeQuestion();
       } else {
         closeMiniMode();
@@ -1049,6 +1084,7 @@
     els.breakFocused.textContent = "Take a short break.";
     els.breakCount.textContent = state.breakRemaining ? formatTime(state.breakRemaining) : "";
     els.breakModal.classList.remove("hidden");
+    renderBreakMini();
     save();
   }
 
@@ -1058,6 +1094,7 @@
     breakHandle = setInterval(() => {
       state.breakRemaining -= 1;
       els.breakCount.textContent = formatTime(state.breakRemaining);
+      renderBreakMini();
       save();
       if (state.breakRemaining <= 0) finishBreak();
     }, 1000);
@@ -1543,11 +1580,23 @@
           <div class="pip-no-time hidden" id="pipNoTimeList"></div>
         </div>`;
       pipWindow.document.querySelector("#pipToggle").addEventListener("click", () => {
-        toggleRun();
+        if (state.breakActive) {
+          if (breakHandle) {
+            clearInterval(breakHandle);
+            breakHandle = null;
+            renderBreakMini();
+          } else {
+            startBreak();
+          }
+        } else {
+          toggleRun();
+        }
         updatePiP();
       });
       pipWindow.document.querySelector("#pipSkip").addEventListener("click", () => {
-        if (state.difficulty === NO_TIME_MODE) {
+        if (state.breakActive) {
+          finishBreak();
+        } else if (state.difficulty === NO_TIME_MODE) {
           tickCurrentNoTimeStep();
         } else {
           completeCurrentStep(false);
@@ -1561,7 +1610,9 @@
         updatePiP();
       });
       pipWindow.document.querySelector("#pipClose").addEventListener("click", () => {
-        if (state.difficulty === NO_TIME_MODE) {
+        if (state.breakActive) {
+          closeMiniMode();
+        } else if (state.difficulty === NO_TIME_MODE) {
           finishNoTimeQuestion();
         } else {
           closeMiniMode();
@@ -1608,6 +1659,26 @@
     const steps = noTime ? getNoTimeSteps() : [];
     const noTimeCurrentIndex = noTime ? getNoTimeCurrentIndex() : 0;
     const noTimeCurrent = noTime ? steps[noTimeCurrentIndex] : null;
+    if (state.breakActive) {
+      const total = Math.max(1, state.breakDuration * 60);
+      const remaining = state.breakRemaining || total;
+      const progress = ((total - remaining) / total) * 100;
+      pipWindow.document.querySelector("#pipStep").textContent = "Break Time";
+      pipWindow.document.querySelector("#pipTime").textContent = formatTime(remaining);
+      pipWindow.document.querySelector("#pipProgress").style.width = `${Math.max(0, Math.min(100, progress))}%`;
+      pipWindow.document.querySelector("#pipTotal").textContent = formatTime(total);
+      pipWindow.document.querySelector("#pipToggle").textContent = breakHandle ? "Pause" : "Start";
+      pipWindow.document.querySelector("#pipSkip").textContent = "Skip Break";
+      pipWindow.document.querySelector("#pipClose").textContent = "Back";
+      pipWindow.document.querySelector("#pipHearts").classList.remove("show");
+      pipWindow.document.querySelector("#pipProgressRow").classList.remove("hidden");
+      pipWindow.document.querySelector("#pipActions").classList.remove("hidden");
+      pipWindow.document.querySelector("#pipDecision").classList.add("hidden");
+      pipWindow.document.querySelector("#pipComplete").classList.add("hidden");
+      pipWindow.document.querySelector("#pipSetup").classList.add("hidden");
+      pipWindow.document.querySelector("#pipNoTimeList").classList.add("hidden");
+      return;
+    }
     pipWindow.document.querySelector("#pipStep").textContent = needsQuestionSetup
       ? "Set up question"
       : noTime && noTimeCurrent
